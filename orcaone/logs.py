@@ -23,7 +23,25 @@ _ENTRY = re.compile(r"\[(trace|debug|info|warning|error|fatal)\]\t(\d{4}-\d\d-\d
 
 
 class LogError(Exception):
-    """An error code for the API: log_not_found or log_filter_invalid."""
+    """An error code for the API, including log_not_readable for binary/encrypted files."""
+
+
+def _readable(raw: bytes) -> bool:
+    """Reject binary content, but tolerate isolated damaged bytes in otherwise plain UTF-8.
+
+    Check small windows so a long text header cannot hide a binary payload. Surrogateescape
+    counts undecodable bytes without mistaking a literal Unicode replacement character for one.
+    """
+    text = raw.decode("utf-8", "surrogateescape")
+    for start in range(0, len(text), 8192):
+        part = text[start:start + 8192]
+        if "\x00" in part:
+            return False
+        controls = len(re.findall(r"[\x01-\x08\x0b\x0e-\x1a\x1c-\x1f\x7f]", part))
+        damaged = len(re.findall(r"[\udc80-\udcff]", part))
+        if controls > max(1, len(part) * .02) or damaged > max(1, len(part) * .05):
+            return False
+    return True
 
 
 def files(data_dir: Path) -> list[dict]:
@@ -40,11 +58,16 @@ def files(data_dir: Path) -> list[dict]:
                 continue
             stat = child.stat()
             with child.open("rb") as fh:
-                first = _ENTRY.match(fh.read(200).decode("utf-8", "replace"))
+                head = fh.read(8192)
+                readable = child.suffix.lower() != ".enc" and _readable(head)
+                if readable and stat.st_size > 8192:
+                    fh.seek(max(0, stat.st_size - 8192))
+                    readable = _readable(fh.read(8192))
+                first = _ENTRY.match(head[:200].decode("utf-8", "replace")) if readable else None
         except OSError:
             continue
         found.append({"name": child.name, "size": stat.st_size, "modified": stat.st_mtime,
-                      "started": first.group(2) if first else None})
+                      "started": first.group(2) if first else None, "readable": readable})
     return sorted(found, key=lambda f: f["modified"], reverse=True)
 
 
@@ -63,8 +86,11 @@ def read(data_dir: Path, name: str, show: str = "all", query: str = "", limit: i
             pattern = None
         if pattern is None:
             raise LogError("log_query_invalid")
-    if name not in {f["name"] for f in files(data_dir)}:
+    listed = next((f for f in files(data_dir) if f["name"] == name), None)
+    if listed is None:
         raise LogError("log_not_found")
+    if not listed["readable"]:
+        raise LogError("log_not_readable")
     path = data_dir / "log" / name
     try:
         with path.open("rb") as fh:
@@ -74,6 +100,8 @@ def read(data_dir: Path, name: str, show: str = "all", query: str = "", limit: i
             raw = fh.read()
     except OSError:
         raise LogError("log_not_found") from None
+    if not _readable(raw):
+        raise LogError("log_not_readable")
     lines = [_SECRET.sub(r"\1***", line) for line in raw.decode("utf-8", "replace").splitlines()]
     if cut:
         lines = lines[1:]  # begins in the middle of a line

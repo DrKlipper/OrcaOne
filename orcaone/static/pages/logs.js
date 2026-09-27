@@ -33,22 +33,28 @@ export default {
     const errorText = (code) => L.errors[code] || T.errors[code] || T.errors.unknown;
     // "2026-09-23 09:24:21" is the local time of the slicer's computer, which is this one.
     const startOf = (f) => f.started ? new Date(f.started.replace(" ", "T")) : new Date(f.modified * 1000);
-    const fileLabel = (f, i) => L.fileOption(whenText(startOf(f)), fmtSize(f.size), i === 0);
+    const fileLabel = (f, i) => L.fileOption(whenText(startOf(f)), fmtSize(f.size), i === 0)
+      + (f.readable ? "" : ` · ${L.unreadable} (${f.name})`);
 
     async function loadFiles() {
       try {
         const data = await api.logs(props.instId);
         files.value = data.files;
         location.value = data.location;
-        if (!data.files.some((f) => f.name === name.value)) name.value = data.files[0]?.name || "";
+        if (!data.files.some((f) => f.name === name.value && f.readable)) {
+          ++seq;
+          log.value = null;
+          name.value = data.files.find((f) => f.readable)?.name || "";
+        }
         error.value = "";
       } catch (err) {
         error.value = errorText(err.code);
       }
     }
     async function loadLog() {
-      if (!name.value) return;
       const mine = ++seq;
+      log.value = null;
+      if (!files.value?.some((f) => f.name === name.value && f.readable)) return;
       try {
         const data = await api.log(props.instId, name.value, show.value, query.value.trim(), regex.value);
         if (mine !== seq) return;
@@ -103,12 +109,13 @@ export default {
           <label class="log-file">
             <span>{{ L.file }}</span>
             <select v-model="name" class="input">
-              <option v-for="(f, i) in files" :key="f.name" :value="f.name">{{ fileLabel(f, i) }}</option>
+              <option v-for="(f, i) in files" :key="f.name" :value="f.name" :disabled="!f.readable">{{ fileLabel(f, i) }}</option>
             </select>
           </label>
           <button class="btn" type="button" :title="L.refreshTitle" @click="refresh"><ui-icon name="refresh"/>{{ L.refresh }}</button>
         </div>
-        <div class="log-bar">
+        <p v-if="!name" class="empty">{{ L.noneReadable }}</p>
+        <div v-else class="log-bar">
           <div class="chips" role="group" :aria-label="L.showLabel">
             <button v-for="s in SHOWS" :key="s" class="chip" type="button" :aria-pressed="show === s ? 'true' : 'false'" @click="show = s">
               {{ L.show[s] }}<span class="log-count">{{ countOf(s) }}</span>

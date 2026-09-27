@@ -1903,6 +1903,8 @@ const T = {
     loading: "Reading logs …",
     none: "This slicer has not written any logs yet.",
     file: "Start",
+    unreadable: "unreadable (encrypted or binary)",
+    noneReadable: "No readable text log file available.",
     fileOption: (when, size, last) => `${when} · ${size}${last ? " · last start" : ""}`,
     refresh: "Refresh",
     refreshTitle: "While the slicer runs, it keeps writing. Fetches the newest state.",
@@ -1919,6 +1921,7 @@ const T = {
     more: (k) => ` … and ${n(k)} more characters`,
     where: "Folder:",
     errors: {
+      log_not_readable: "This log file is encrypted or binary and cannot be displayed as text.",
       log_not_found: "This log file no longer exists. Click “Refresh”.",
     },
   },
