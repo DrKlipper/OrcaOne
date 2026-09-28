@@ -1,0 +1,25 @@
+.merge-steps { display: flex; gap: 28px; margin: 0; padding: 10px 24px 16px; list-style: none; border-bottom: 1px solid var(--divider); color: var(--muted); }
+.merge-steps [aria-current] { color: var(--accent); font-weight: 600; }
+.merge-fields { border: 0; margin: 0; padding: 0; min-width: 0; }
+.merge-board { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(300px, 1.25fr); gap: 24px; align-items: start; }
+.merge-source, .merge-variant { padding: 16px 0; border-bottom: 1px solid var(--divider); overflow-wrap: anywhere; }
+.merge-source h4 { margin: 0; }
+.merge-source details { margin-top: 14px; }
+.merge-source-processes { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; max-height: 180px; overflow: auto; }
+.merge-process-chip { border: 1px solid var(--line-box); background: var(--surface); color: var(--text); padding: 6px 9px; border-radius: 4px; font: inherit; text-align: left; cursor: grab; overflow-wrap: anywhere; }
+.merge-source[draggable], .merge-process[draggable] { cursor: grab; }
+.merge-target { border: 2px dashed var(--accent-line); padding: 0 20px 20px; border-radius: 6px; min-height: 240px; }
+.merge-target label { margin-top: 12px; }
+.merge-drop-hint { padding: 30px 0; color: var(--muted); }
+.merge-nozzles { display: flex; flex-wrap: wrap; gap: 12px; }
+.merge-nozzles label { flex: 1; min-width: 110px; }
+.merge-processes { margin-top: 28px; }
+.merge-process { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(180px, 1fr); gap: 12px 24px; padding: 16px 0; border-top: 1px solid var(--divider); align-items: start; overflow-wrap: anywhere; }
+.merge-process small, .merge-process-targets { grid-column: 1 / -1; }
+.merge-process-targets { display: flex; gap: 12px 24px; flex-wrap: wrap; }
+.printer-merge .merge-process-targets label { flex-direction: row; align-items: center; }
+@media (max-width: 700px) {
+  .merge-board, .merge-process { grid-template-columns: 1fr; }
+  .merge-steps { gap: 14px; padding-inline: 16px; font-size: 13px; }
+  .printer-merge input, .printer-merge select { font-size: 16px; }
+}

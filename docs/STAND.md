@@ -1,11 +1,13 @@
 # Arbeitsstand
 
-Stand 26.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, wo was liegt. Was eine Seite genau tut, steht im [Handbuch](HANDBUCH.md), geprüfte Fakten stehen in [FINDINGS](FINDINGS.md), der Verlauf in `git log`.
+Stand 27.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, wo was liegt. Was eine Seite genau tut, steht im [Handbuch](HANDBUCH.md), geprüfte Fakten stehen in [FINDINGS](FINDINGS.md), der Verlauf in `git log`.
+
+Neu im Entwicklungsbranch: [Profil-Editor und Timeline](PROFILE_EDITOR.md), exakte Kataloge für OrcaSlicer 2.4.2 und Snapmaker Orca 2.4.0, lokale Revisionen und guarded Publish. Automatisierte Fixture-Tests ersetzen nicht die noch offene [praktische Abnahme](PROFILE-ABNAHME.md).
 
 ## Überblick
 
 - **Seiten** in zwei Bereichen (25.09.):
-  - Slicer: Übersicht (die Startseite, mit den Druckern des Slicers), Zusammenhänge (der Baum), Prozesse (nur zum Ansehen), Filamente (darunter Übertragen, Vergleichen, Kalibrieren für den U1, Import/Export, Details), 3MF bereinigen, Installationen (darunter Sicherungen, Änderungen, Logs);
+  - Slicer: Übersicht (die Startseite, mit den Druckern des Slicers), Zusammenhänge (der Baum), Prozesse, Filamente (darunter Übertragen, Vergleichen, Kalibrieren für den U1, Import/Export, Details), 3MF bereinigen, Installationen (darunter Sicherungen, Änderungen, Logs); „Profile bearbeiten“ öffnet den gemeinsamen lokalen Editor.
   - Drucker (am 26.09. neu geordnet: zuerst, was man beim Drucken braucht): Drucker (die Startseite), Status, Steuerung, 3D Ansicht, 2D Ansicht, Kamera (U1, mit Druckstatus), Dateien (U1), Höhenkarte, Konsole (G-Code), Netzwerk, SSH, Fehler und Logs.
 - **Sprachen:** Deutsch und Englisch.
 - **Start:** `./orcaone.sh` bzw. `orcaone.cmd`, Port 4711, auf Wunsch als App-Fenster mit eigenem Symbol ([STARTEN-UND-BAUEN](STARTEN-UND-BAUEN.md)).
@@ -230,7 +232,7 @@ In FINDINGS unter „Offen: nur am laufenden Slicer prüfbar“:
 | Abhängigkeiten | fastapi, uvicorn, psutil, pytest in `.lenv` bzw. unter Windows `.wenv` (24.09.); Vue und Schrift liegen lokal; neue nur nach Rücksprache |
 | Stil | Farben von OrcaSlicer (Teal `#009688`), Schrift Inter, Druckerbilder, Spulen, wenig Text; eigenes App-Symbol, nichts aus Orca oder SnOrca |
 | Grundsatz | kein zweites Orca bauen, sondern ein einfaches Filament-System für Normalos; neue Seiten nur auf Auftrag |
-| Prozesse | nur ansehen, nicht bearbeiten (22.09.) |
+| Prozesse | vollständiger lokaler Editor mit Timeline beauftragt (27.09.); explizite Übernahme über Planner, praktische Slicer-Abnahme offen |
 | Echte Ordner | SnOrca und OrcaSlicer sind auf diesem Rechner Testinstallationen. OrcaOne schreibt direkt hinein, abgesichert durch seine Sicherungen (23.09.) |
 | Sicherungen | vor jedem Schreiben automatisch, alle behalten, Gesamtgröße anzeigen |
 | U1 | nur lesend über Moonraker. Einzige Ausnahme, auf Wunsch des Nutzers vom 24.09.: das Licht im U1 auf der Seite „Kamera“ (`SET_LED`). Alles andere Schreibende erst nach seiner Entscheidung |

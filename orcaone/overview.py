@@ -9,10 +9,11 @@ import colorsys
 import logging
 import re
 import threading
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-from . import backup, camera, covers, guard, instances, scanner, snapshot
+from . import backup, camera, covers, guard, instances, profile_groups, scanner, snapshot
 from .model import SLICERS, Instance
 from .resolver import CORE_VALUES, EDITABLE_FIELDS, STATUS_OF_PROBLEM, VALUE_KEYS, Resolver, first, strings
 from .scanner import LIBRARY, KINDS
@@ -144,8 +145,10 @@ def _own_printer_models(res: Resolver) -> list:
         if not res.loaded(p) or not complete:
             continue
         base = next((c for c in chain if c.package), None)
+        nozzle = strings(res.value(p, "nozzle_diameter"))
         out.append({"printer": p, "model": first(res.value(p, "printer_model")) or "",
-                    "variant": first(res.value(p, "printer_variant")) or "",
+                    "variant": "+".join(dict.fromkeys(nozzle)) or first(res.value(p, "printer_variant")) or "",
+                    "nozzle": nozzle,
                     "package": base.package if base else ""})
     return out
 
@@ -656,12 +659,38 @@ def build_instance(instance: Instance, processes: list, manual: bool = False) ->
                       "printers": [variant_entry(variant, printer) for variant, printer in m["printers"]],
                       "cover": cover(m["package"], m["model"])} for m in models]
     # Own printers after the system models, so a model keeps its index (and its address).
-    out_models = system_models + [
+    own_cards = [
         {"model": o["printer"].name, "origin": o["package"], "own": True, "based_on": o["model"],
-         "printers": [variant_entry(o["variant"], o["printer"])],
+         "printers": [{**variant_entry(o["variant"], o["printer"]), "nozzle": o["nozzle"]}],
          "cover": cover(o["package"], o["model"]),
          **({"bundle": scan.bundles.get(o["printer"].bundle, "")} if o["printer"].bundle else {})}
         for o in own_models]
+    own_counts = Counter(p.name for p in scan.own if p.kind == "machine")
+    groups = profile_groups.resolve_groups(instance.id,
+                                            [o["printer"].name for o in own_models if o["printer"].origin_kind == "user"],
+                                            [name for name, count in own_counts.items() if count > 1],
+                                            user_folder=instance.active_user_folder)
+    by_name = {card["printers"][0]["name"]: card for card in own_cards}
+    membership = {name: group for group in groups for name in group["names"]}
+    out_models = list(system_models)
+    seen_groups = set()
+    for card in own_cards:
+        name = card["printers"][0]["name"]
+        group = membership.get(name)
+        if group is None:
+            out_models.append(card)
+        elif group["id"] not in seen_groups:
+            seen_groups.add(group["id"])
+            members = [by_name[member] for member in group["names"]]
+            bases = {member["based_on"] for member in members}
+            out_models.append({"model": "group:" + group["id"], "group_id": group["id"],
+                               "display_name": group["display_name"], "own": True,
+                               "origin": members[0]["origin"], "cover": members[0]["cover"],
+                               "based_on": next(iter(bases)) if len(bases) == 1 else "",
+                               "printers": [{**member["printers"][0],
+                                             **({"label": group["labels"][member["printers"][0]["name"]]}
+                                                if member["printers"][0]["name"] in group.get("labels", {}) else {})}
+                                            for member in members]})
 
     without_printer = []
     for name in filament_list:
@@ -741,7 +770,16 @@ def build_all() -> dict:
     built, failed = [], []
     for i in found:
         try:
-            built.append(build_instance(i, processes, str(i.data_dir) in manual))
+            item = build_instance(i, processes, str(i.data_dir) in manual)
+            # Only profiles explicitly opened in the editor have local identities.
+            # A history-store failure must not hide the slicer's normal overview.
+            try:
+                from .profile_live import capture
+                item["profile_history"] = capture(i)
+            except Exception:
+                log.exception("Reading local profile history failed")
+                item["profile_history"] = {"error": "history_unavailable"}
+            built.append(item)
         except Exception:
             log.exception("Reading %s failed", i.data_dir)
             _fail(_label(i))

@@ -13,6 +13,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def data_files() -> list[tuple[Path, str]]:
+    """Explicit release assets; local settings, backups and history are never bundled."""
+    return [(ROOT / "orcaone/static", "orcaone/static"),
+            (ROOT / "orcaone/options.json", "orcaone"),
+            (ROOT / "orcaone/profile_schemas", "orcaone/profile_schemas"),
+            (ROOT / "LICENSE.md", ".")]
+
+
 def main() -> None:
     try:
         import PyInstaller.__main__
@@ -26,11 +34,9 @@ def main() -> None:
     PyInstaller.__main__.run([
         str(launcher), "--name", "OrcaOne", "--onedir", "--noconfirm", "--clean",
         "--paths", str(ROOT), "--distpath", str(ROOT / "dist"), "--workpath", str(work), "--specpath", str(work),
-        # The page and the option lists the transfer needs; os.pathsep is ";" on Windows, ":" elsewhere.
-        "--add-data", f"{ROOT / 'orcaone' / 'static'}{os.pathsep}orcaone/static",
-        "--add-data", f"{ROOT / 'orcaone' / 'options.json'}{os.pathsep}orcaone",
-        # The licence goes with every copy (PolyForm, "Notices").
-        "--add-data", f"{ROOT / 'LICENSE.md'}{os.pathsep}.",
+        # os.pathsep is ";" on Windows, ":" elsewhere; the licence accompanies every copy.
+        *[part for source, destination in data_files()
+          for part in ("--add-data", f"{source}{os.pathsep}{destination}")],
         # uvicorn picks its event loop and protocols by name at run time.
         "--collect-submodules", "uvicorn",
         # OrcaOne's icon for the program file; only Windows keeps it there (tools/make_icons.py).

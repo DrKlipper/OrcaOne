@@ -1,0 +1,27 @@
+{
+  "provenance": "source-derived, not Slicer roundtrip",
+  "sources": [
+    {"slicer": "OrcaSlicer", "commit": "8500fcdccaa10b5099ac20d252af3a7c560046f1", "file": "src/libslic3r/Preset.cpp", "line": 444},
+    {"slicer": "Snapmaker_Orca", "commit": "b1831e5dcb464172de33783142425aafda834fbc", "file": "src/libslic3r/Preset.cpp", "line": 384},
+    {"slicer": "Snapmaker_Orca", "commit": "b1831e5dcb464172de33783142425aafda834fbc", "file": "src/libslic3r/Config.hpp", "line": 445}
+  ],
+  "cases": [
+    {"name": "single filament keeps long SnOrca vector", "slicer": "Snapmaker_Orca", "kind": "filament", "options": {
+      "filament_diameter": {"default": ["1.75"], "type": "coFloats", "dimension": "filament"},
+      "temperature": {"default": ["200", "210"], "type": "coInts", "dimension": "list"}
+    }, "expected": {"temperature": ["200", "210"]}},
+    {"name": "single filament shrinks Orca vector", "slicer": "OrcaSlicer", "kind": "filament", "options": {
+      "filament_diameter": {"default": ["1.75"], "type": "coFloats", "dimension": "filament"},
+      "temperature": {"default": ["200", "210"], "type": "coInts", "dimension": "list"}
+    }, "expected": {"temperature": ["200"]}},
+    {"name": "four heads and three independent process flows", "slicer": "Snapmaker_Orca", "kind": "process", "context": {"extruder_count": 4}, "options": {
+      "process_flow_support": {"default": ["standard", "high_flow", "extra"], "type": "coStrings", "dimension": "list"},
+      "speed": {"default": ["10", "20"], "type": "coFloats", "dimension": "flow"}
+    }, "expected": {"speed": ["10", "20", "10"]}},
+    {"name": "multiple heads extend first source value", "slicer": "Snapmaker_Orca", "kind": "machine", "options": {
+      "single_extruder_multi_material": {"default": "0", "type": "coBool", "dimension": "scalar"},
+      "nozzle_diameter": {"default": ["0.4", "0.6", "0.8"], "type": "coFloats", "dimension": "extruder"},
+      "retraction": {"default": ["1", "2"], "type": "coFloats", "dimension": "extruder"}
+    }, "expected": {"retraction": ["1", "2", "1"]}}
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "catalogs": [
+    {"slicer": "OrcaSlicer", "version": "2.4.2", "file": "orca-2.4.2.json"},
+    {"slicer": "Snapmaker_Orca", "version": "2.4.0", "file": "snorca-2.4.0.json"}
+  ]
+}

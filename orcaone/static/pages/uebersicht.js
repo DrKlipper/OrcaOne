@@ -31,6 +31,7 @@ const NO_COLOUR = "#D9D9D9";  // a spool without a colour
 // (MAXIMUM_EXTRUDER_NUMBER, "Add one filament"), the rest behind "N weitere".
 const HEADS = 4;
 
+
 export default {
   name: "UebersichtPage",
   props: { instId: { type: String, required: true } },
@@ -59,10 +60,14 @@ export default {
       const p = m.printers.find((x) => x.name === start) || m.printers.find((x) => x.process || x.heads?.length);
       if (!p) return null;
       return {
-        preset: p.name, start: p.name === start, nozzle: p.variant ? nozzleLabel(p.variant) : "", process: p.process,
+        preset: p.name, start: p.name === start, nozzle: variantText(p), process: p.process,
         heads: (p.heads || []).map((h) => ({ name: h.name, colour: h.colour || NO_COLOUR, label: h.material || short(h.name) })),
       };
     }
+    const variantText = p => {
+      const sizes = Array.isArray(p.nozzle_diameter) ? p.nozzle_diameter.join(' / ') : p.variant ? nozzleLabel(p.variant) : '';
+      return p.label ? `${p.label} · ${sizes}` : sizes;
+    };
     // One card per model of a manufacturer and per own printer, as the slicer shows them; with the
     // model's entry of GET /api/data for its nozzles, and its address by model as the printer part
     // keeps it (an own printer by the model it is built on).
@@ -84,8 +89,22 @@ export default {
           entry: i.models.find((x) => !x.own && x.model === m.model),
         });
       }
+      const emittedGroups = new Set();
       for (const p of pp.own) {
         if (!s.own.has(p.name)) continue;
+        const group = i.models.find(m => m.group_id && m.printers.some(member => member.name === p.name));
+        if (group) {
+          if (emittedGroups.has(group.group_id)) continue;
+          emittedGroups.add(group.group_id);
+          const printers = group.printers.filter(member => s.own.has(member.name));
+          const entry = printers.length === group.printers.length ? group : { ...group, printers };
+          out.push({ id: 'group:' + group.group_id, group: true, system: false, model: group.model,
+            name: group.display_name, label: group.display_name, sub: '', cover: group.cover || p.cover,
+            printers, tag: P.tags.own, tagIcon: 'user', visible: true, problem: null,
+            isDefault: printers.some(member => member.name === s.defaultPrinter), onlyHere: [], keepsOwn: [], entry,
+          });
+          continue;
+        }
         const project = p.origin === "project", bundle = p.origin === "bundle";
         // Its template sits in a vendor package the slicer deletes at its next start.
         const packageGone = !!p.package && !s.packages.has(p.package);
@@ -109,13 +128,16 @@ export default {
       return out.sort((a, b) => first(a) - first(b)).map((c) => {
         // The printer of the printer part: an own printer with an address of its own in the
         // slicer by its name (camera.remember_slicer_hosts), else the model's.
-        const m = c.entry || null, hostKey = hosts.value?.[c.name] ? c.name : c.model || c.name;
+        const m = c.entry || null;
+        const groupHosts = c.group ? [...new Set(m.printers.map(p => hosts.value?.[p.name]?.host).filter(Boolean))] : [];
+        const groupHostKey = c.group && groupHosts.length === 1 && m.printers.every(p => hosts.value?.[p.name]?.host === groupHosts[0]) ? m.printers[0].name : null;
+        const hostKey = c.group ? groupHostKey : hosts.value?.[c.name] ? c.name : c.model || c.name;
         return {
-          ...c, idx: m ? i.models.indexOf(m) : -1, active: !!m && m.model === ui.printer, inSlicer: first(c) === 0,
+          ...c, idx: m ? i.models.findIndex(entry => entry.model === m.model) : -1, active: !!m && m.model === ui.printer, inSlicer: first(c) === 0,
           now: m ? nowOf(m, s.defaultPrinter) : null,
           // The one the slicer starts with marked; queued while it is not written yet.
-          nozzles: m ? m.printers.filter((x) => x.variant).map((x) => ({
-            name: x.name, text: nozzleLabel(x.variant), start: x.name === s.defaultPrinter, queued: x.name === s.defaultPrinter && !x.selected,
+          nozzles: m ? m.printers.filter((x) => x.variant || x.nozzle_diameter?.length).map((x) => ({
+            name: x.name, text: variantText(x), start: x.name === s.defaultPrinter, queued: x.name === s.defaultPrinter && !x.selected,
           })) : [],
           hostKey, host: hosts.value?.[hostKey]?.host || "",
         };
@@ -153,8 +175,8 @@ export default {
       const out = {}, start = state.value.defaultPrinter;
       for (const c of cards.value) {
         if (!isOpen(c) || !c.entry) continue;
-        out[c.id] = c.entry.printers.filter((p) => p.variant).map((p) => ({
-          name: p.name, text: nozzleLabel(p.variant), start: p.name === start, last: p.process, procs: p.processes || [],
+        out[c.id] = c.entry.printers.filter((p) => p.variant || p.nozzle_diameter?.length).map((p) => ({
+          name: p.name, text: variantText(p), start: p.name === start, last: p.process, procs: p.processes || [],
           fils: inst.value.filaments.filter((f) => f.printers?.[p.name]?.status === "visible"),
         }));
       }
@@ -360,9 +382,9 @@ export default {
               <div class="home-pcard-links">
                 <a v-if="c.idx >= 0" class="btn" :href="to('filamente', c.idx)" @click="go($event, to('filamente', c.idx))"><ui-icon name="spool"/>{{ T.nav.pages.filamente }}</a>
                 <a v-if="c.idx >= 0" class="btn" :href="to('prozesse', c.idx)" @click="go($event, to('prozesse', c.idx))"><ui-icon name="layers"/>{{ T.nav.pages.prozesse }}</a>
-                <a class="btn" :href="to('drucker')" :title="c.host ? null : P.connectWhy" @click.prevent="toMachine(c)">
+                <a v-if="!c.group || c.host" class="btn" :href="to('drucker')" :title="c.host ? null : P.connectWhy" @click.prevent="toMachine(c)">
                   <ui-icon :name="c.host ? 'printer' : 'network'"/>{{ c.host ? O.toMachine : O.connect }}</a>
-                <div class="home-pcard-menu">
+                <div v-if="!c.group" class="home-pcard-menu">
                   <button class="btn btn-icon" type="button" :aria-label="O.menu" :title="O.menu" aria-haspopup="menu"
                           :aria-expanded="menuFor === c.id ? 'true' : 'false'" @click="menuFor = menuFor === c.id ? null : c.id"><ui-icon name="more"/></button>
                   <div v-if="menuFor === c.id" class="inst-menu" role="menu">

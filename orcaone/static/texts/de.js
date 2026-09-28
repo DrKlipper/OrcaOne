@@ -4,11 +4,17 @@
 // backend sends codes (orcaone/overview.py); their words are in the second half. A function gets
 // what the sentence needs: a count, a name, or the entry that carries the code.
 import { plainName } from "./names.js";
+import profileEditor from "./profile-de.js";
+import profileTransfer from "./profile-transfer-de.js";
+import printerMerge from "./printer-merge-de.js";
 
 const n = (x) => x.toLocaleString("de-DE");
 const q = (name) => `„${name}“`;
 
 const T = {
+  profileEditor,
+  profileTransfer,
+  printerMerge,
   lang: "de",
   locale: "de-DE",  // numbers, dates and times (common.js)
   quote: q,
@@ -235,7 +241,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Bereich", slicer: "Slicer", printer: "Drucker",
       hint: { slicer: "Die Profile der Slicer: Filamente, Prozesse, Drucker", printer: "Die Drucker selbst: Status, Dateien, Ansichten, Kamera, Konsole" } },
-    pages: { diagramme: "Diagramme", fehler: "Fehler", uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", steuern: "Steuerung", hoehenkarte: "Höhenkarte", druck3d: "3D Ansicht", druck2d: "2D Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Netzwerk", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
+    pages: { diagramme: "Diagramme", fehler: "Fehler", uebersicht: "Übersicht", zusammenhaenge: "Zusammenhänge", "profile-editor": "Profile bearbeiten", "profile-workbench": "Profile zusammenstellen", filamente: "Filamente", prozesse: "Prozesse", kalibrieren: "Kalibrieren", drucker: "Drucker", status: "Status", steuern: "Steuerung", hoehenkarte: "Höhenkarte", druck3d: "3D Ansicht", druck2d: "2D Ansicht", kamera: "Kamera", dateien: "Dateien", konsole: "Konsole", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Netzwerk", aenderungen: "Änderungen", bereinigen: "3MF bereinigen", transfer: "Übertragen", vergleichen: "Vergleichen", import: "Import/Export", sicherungen: "Sicherungen", slicer: "Installationen", details: "Details", logs: "Logs", lizenz: "Lizenz" },
     // "by Dr. Klipper" at the bottom of the menu, leads to the page "Lizenz"
     byHint: "Wer OrcaOne gemacht hat und die Lizenz",
     news: "Änderungen seit dem letzten Mal",
@@ -328,6 +334,7 @@ const T = {
   // next. inst is the installation, data the rest of the answer ({"error": code, …}) or the
   // plan's blocked_params ({change, name, children}).
   blocked: {
+    reference_missing: (_inst, d) => `Das referenzierte Profil ${q(d.name || '')} fehlt (${d.key || 'Profilzuordnung'}). Stelle das benötigte Profil im Slicer bereit oder korrigiere die Zuordnung im Profile Editor. Erstelle anschließend eine neue Vorschau.`,
     slicer_running: (inst) => `${inst.slicer} läuft gerade. Schließe das Programm, um Änderungen zu speichern.`,
     slicer_maybe_running: (inst) => `Vielleicht läuft ${inst.slicer} gerade. Schließe alle Fenster von ${inst.slicer} und lies dann neu ein.`,
     // Starting the slicer would reset every setting (FINDINGS 4.3); a restore is not stopped by it.
@@ -349,7 +356,7 @@ const T = {
     profile_invalid: (inst, d) => `${d.name ? `Die Datei von ${q(d.name)}` : "Eine Profildatei"} ist fehlerhaft oder wäre es danach. OrcaOne ändert sie deshalb nicht, löschen geht.`,
     has_children: (inst, d) => `Auf ${q(d.name)} ${d.children?.length === 1 ? "baut" : "bauen"} ${(d.children || []).map(q).join(", ")} auf. Lösche oder ändere erst ${d.children?.length === 1 ? "dieses Profil" : "diese Profile"}.`,
     filaments_would_be_empty: (inst) => `Dann wäre kein Filament mehr eingeschaltet, und ${inst.slicer} zeigt dann alle. Lass mindestens eins an.`,
-    plan_outdated: () => "Seit dem Plan hat sich im Datenordner etwas geändert. Plane neu, dann siehst du den jetzigen Stand.",
+    plan_outdated: () => "Die Slicer-Daten haben sich seit der Vorschau geändert. Dein Entwurf bleibt erhalten. Erstelle eine neue Vorschau und prüfe die Änderungen erneut.",
     path_outside_backup: (inst, d) => `${d.path ? q(d.path) : "Ein Pfad"} führt über eine Verknüpfung (Symlink) oder aus dem Ordner user hinaus. Das kann OrcaOne nicht sichern und ändert deshalb nichts. Ersetze die Verknüpfung durch einen echten Ordner.`,
     // /apply after the backup (data.backup): a write failed, the touched files went back to the
     // backup if data.rolled_back.
@@ -411,6 +418,7 @@ const T = {
     what: {
       own_profile: (p) => ({ filament: "Eigenes Filament", machine: "Eigener Drucker", process: "Eigener Prozess" })[p.kind] || "Eigenes Profil",
       profile_info: "Verwaltungsdaten zum Profil",
+      native_profile: "Gemeinsames Druckermodell mit Düsen",
       conf: "Einstellungen des Slicers",
       file: "",
     },

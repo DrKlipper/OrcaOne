@@ -986,4 +986,16 @@ def index():
     return HTMLResponse(html)
 
 
+from .profile_api import router as profile_router
+from .profile_store import HistoryError
+
+
+@app.exception_handler(HistoryError)
+def _profile_history_error(request: Request, exc: HistoryError):
+    status = (404 if exc.code.endswith("_missing") else
+              400 if exc.code.startswith("invalid_") else 409)
+    return _error(exc.code, status)
+
+
+app.include_router(profile_router)
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

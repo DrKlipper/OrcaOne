@@ -112,6 +112,7 @@ def _next_name(folder: Path, reason: str) -> str:
 def create(instance: Instance, reason: str, params: dict | None = None) -> dict:
     """Back up the data directory now. Raises BackupError("backup_failed") if a file cannot be
     read: without a complete backup OrcaOne writes nothing."""
+    from .profile_jobs import report
     folder = backup_dir(instance.id)
     try:
         _private_dir(folder)
@@ -123,7 +124,10 @@ def create(instance: Instance, reason: str, params: dict | None = None) -> dict:
     try:
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
         with os.fdopen(fd, "wb") as out, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, strict_timestamps=False) as zf:
-            for rel, is_dir in walk(instance.data_dir, strict=True):
+            entries = list(walk(instance.data_dir, strict=True))
+            total_files = sum(not is_dir for _, is_dir in entries)
+            report("backup", 0, total_files)
+            for rel, is_dir in entries:
                 path = instance.data_dir / rel
                 cls, arcname = _entry_name(rel)
                 info = cls.from_file(path, arcname, strict_timestamps=False)
@@ -136,6 +140,7 @@ def create(instance: Instance, reason: str, params: dict | None = None) -> dict:
                 with open(path, "rb") as src, zf.open(info, "w") as dst:
                     shutil.copyfileobj(src, dst, 1 << 20)
                 files.append(_display(rel))
+                report("backup", len(files), total_files)
             manifest = {
                 "orcaone": __version__,
                 "created": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -208,6 +213,7 @@ def restorable(instance: Instance, name: str) -> tuple[dict, set]:
     path = backup_path(instance.id, name)
     conf_name = f"{instance.slicer}.conf"
     files, dirs = {}, set()
+    native_candidates = {}
     try:
         with zipfile.ZipFile(path) as zf:
             if _manifest_name(zf) is None:
@@ -225,6 +231,15 @@ def restorable(instance: Instance, name: str) -> tuple[dict, set]:
                         dirs.add(rel)
                     else:
                         files[rel] = zf.read(info)
+                elif parts[0] == "system" and not info.is_dir():
+                    from .profile_native_paths import managed_path
+                    if managed_path(rel):
+                        native_candidates[rel] = zf.read(info)
+            from .profile_native_paths import archive_owned_files
+            for rel in archive_owned_files(native_candidates):
+                files[rel] = native_candidates[rel]
+                if rel.count("/") > 1:
+                    dirs.update((str(PurePosixPath(rel).parent), str(PurePosixPath(rel).parent.parent)))
     except (OSError, zipfile.BadZipFile, ValueError):
         raise BackupError("backup_unreadable") from None
     return files, dirs

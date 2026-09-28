@@ -41,10 +41,10 @@ export default {
       const first = (m) => (m.printers.some((p) => p.selected) ? 0 : 1);
       return printerModels(i).slice().sort((a, b) => first(a) - first(b)).map((m) => ({
         id: "m:" + m.model, m, idx: i.models.indexOf(m), cover: m.cover, own: !!m.own,
-        label: m.own ? plainName(m.model) : printerShortName(m.printers[0]?.name || m.model),
+        label: m.display_name || (m.own ? plainName(m.model) : printerShortName(m.printers[0]?.name || m.model)),
         template: m.own ? templateOf(m) : "", start: m.printers.some((p) => p.name === start),
         nozzles: m.printers.map((p) => ({
-          id: "p:" + p.name, p, text: p.variant ? nozzleLabel(p.variant) : "", sizes: (p.variant || "0.4").split("+").map(Number),
+          id: "p:" + p.name, p, text: [p.label || '', Array.isArray(p.nozzle_diameter) ? p.nozzle_diameter.join(' / ') : p.variant ? nozzleLabel(p.variant) : ''].filter(Boolean).join(' · '), sizes: Array.isArray(p.nozzle_diameter) ? p.nozzle_diameter.map(Number) : (p.variant || '').split('+').filter(Boolean).map(Number),
           start: p.name === start, procs: (p.processes || []).length, on: p.counts?.visible || 0, off: p.counts?.hidden || 0,
         })),
       }));

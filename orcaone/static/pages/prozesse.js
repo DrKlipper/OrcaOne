@@ -1,6 +1,6 @@
 // Page "Prozesse": the print settings (process profiles) the slicer offers per printer and
-// nozzle, and what they set. Only to look at: editing processes would make OrcaOne a second slicer
-// (decision of 22.09.2026). The printer comes from the top bar (app.js), as on the page
+// nozzle, and what they set. Full editing opens the shared local profile workspace.
+// The printer comes from the top bar (app.js), as on the page
 // "Filamente", and the nozzle chosen counts for both pages. A process belongs to the printer
 // profile of one nozzle; which filament goes with it is a separate choice in the slicer.
 // Data: GET /api/data (processes, models[].printers[].processes and .process, the last choice);
@@ -11,6 +11,7 @@ import {
 import { T, plainName } from "../texts.js";
 import { api } from "../api.js";
 import { problemText } from "../plan.js";
+import { openProfiles } from "./profile-session.js";
 
 const { ref, computed, nextTick, onMounted, onUnmounted } = Vue;
 const P = T.processes;
@@ -61,7 +62,7 @@ export default {
     const model = computed(() => props.modelIdx === null ? null : inst.value.models[props.modelIdx]);
     const gone = computed(() => !!model.value && !modelShown(inst.value, model.value));
     const byName = computed(() => new Map(inst.value.processes.map((r) => [r.name, r])));
-    const printerTitle = computed(() => model.value && printerShortName(model.value.printers[0]?.name || model.value.model));
+    const printerTitle = computed(() => model.value && (model.value.display_name || printerShortName(model.value.printers[0]?.name || model.value.model)));
 
     const noPrinter = computed(() => !printerModels(inst.value).length);
 
@@ -145,7 +146,7 @@ export default {
     onUnmounted(() => window.removeEventListener("keydown", onKey));
 
     return {
-      T, P, F, inst, model, gone, printerTitle, noPrinter, nozzle, pickNozzle, groups, lastTile, panel,
+      T, P, F, inst, model, gone, printerTitle, noPrinter, nozzle, pickNozzle, groups, lastTile, panel, openProfiles,
       openTile, closePanel, originText, shownGroups, twoValues, allValues, nozzleLabel, hashOf, go, plainName,
     };
   },
@@ -185,7 +186,8 @@ export default {
           <div class="nozzle-row">
             <button v-for="p in model.printers" :key="p.name" type="button" class="nozzle-tile"
                     :aria-pressed="nozzle && nozzle.name === p.name" @click="pickNozzle(p)">
-              <nozzle-icon :sizes="[Number(p.variant) || 0.4]"/>{{ nozzleLabel(p.variant) }} mm
+              <nozzle-icon :sizes="p.variant.split('+').map(Number)"/>{{ nozzleLabel(p.variant) }} mm
+              <small v-if="model.group_id">{{ p.label || p.name }}</small>
             </button>
           </div>
         </section>
@@ -256,7 +258,7 @@ export default {
               </dl>
             </details>
           </template>
-          <p class="quiet-note view-only"><ui-icon name="info"/>{{ P.viewOnly }}</p>
+          <button class="btn" type="button" @click="openProfiles(inst.id, [{kind: 'process', name: panel.t.r.name}])">{{ T.profileEditor.title }}</button>
         </div>
       </aside>
     </div>

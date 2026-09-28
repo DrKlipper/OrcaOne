@@ -1,0 +1,11 @@
+export default { title: "Copy to another installation", target: "Target installation", name: "Copy name",
+  preview: "Review conversion", confirm: "Create confirmed copies locally", open: "Open target variant",
+  local: "This creates a local variant in the target. Applying it to the slicer remains a separate step.",
+  losses: "Confirm each change for the target", issues: "Correct these parameters first",
+  none: "A second installation is required.", choose: "Please select", note: "Target variant name",
+  failed: "Conversion unavailable", loading: "Checking …", redacted: "Management or connection value omitted",
+  codes: { vector_truncated: "Additional values are discarded", enum_changed: "Unsupported choice is replaced",
+    range_replaced: "Value is outside the target range and is replaced by the target default", nil_replaced: "Automatic value is replaced",
+    unknown_field: "Unknown target parameter is omitted", dimension_changed: "Value index meaning changes",
+    normalization_changed: "Target requires a different count or structure", empty_vector_replaced: "Empty list is replaced",
+    secret_omitted: "Credentials are not copied", metadata_omitted: "Management value is rebuilt" } };

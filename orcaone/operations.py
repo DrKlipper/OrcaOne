@@ -81,6 +81,7 @@ class Step:
     to: str | None = None        # rename: the new path
     check: str | None = None     # "profile" or "conf": parse again after writing
     name: str | None = None      # profile name for check "profile"
+    nested_keys: tuple = ()      # catalog-approved coPointsGroups JSON arrays
 
 
 @dataclass
@@ -97,6 +98,7 @@ class Plan:
     expect_loaded: list = field(default_factory=list)  # (kind, name) the scan afterwards must load
     unlock_add: set = field(default_factory=set)
     unlock_remove: set = field(default_factory=set)
+    publish: dict | None = None
 
 
 # ---------------------------------------------------------------- small helpers
@@ -130,6 +132,14 @@ def outside_backup(data_dir: Path, rel: str, conf_name: str) -> bool:
     """True if a step on rel would reach past what the backup holds (hard rules 2 and 4): a
     symlink on the way (backup.walk leaves them out, so nothing there could be restored), "..",
     or a place that is neither the .conf nor in user/. A preset_folder like ".." ends up here."""
+    from .profile_native_paths import vendor_of, directory_vendor, validate_existing, safe_path
+    vendor = vendor_of(rel) or directory_vendor(rel)
+    if vendor:
+        try:
+            validate_existing(data_dir, vendor)
+            return not safe_path(data_dir, rel)
+        except ValueError:
+            return True
     parts = PurePosixPath(rel).parts
     if ".." in parts or rel != conf_name and parts[:1] != ("user",):
         return True
@@ -166,7 +176,7 @@ def name_problem(name) -> str | None:
     return "name_too_long" if len(name) > MAX_NAME or len(raw) + len(".json") > 255 else None
 
 
-def check_profile(raw: bytes, name: str) -> bool:
+def check_profile(raw: bytes, name: str, nested_keys: tuple = ()) -> bool:
     """What the slicer needs to load the file instead of deleting or skipping it (FINDINGS 4.4):
     JSON, metadata as strings, values as strings or lists of strings, a valid version."""
     try:
@@ -179,7 +189,9 @@ def check_profile(raw: bytes, name: str) -> bool:
         if key in META_KEYS:
             if not isinstance(value, str):
                 return False
-        elif not (isinstance(value, str) or isinstance(value, list) and all(isinstance(v, str) for v in value)):
+        elif not (isinstance(value, str) or isinstance(value, list) and all(isinstance(v, str) for v in value)
+                  or key in nested_keys and isinstance(value, list)
+                  and all(isinstance(group, list) and all(isinstance(v, str) for v in group) for group in value)):
             return False
     return bool(SEMVER.fullmatch(data.get("version", "")))
 
@@ -383,6 +395,7 @@ class Planner:
         self.gone = set()  # printers the slicer no longer lists after the changes so far
         self._excluded = None
         self._sources = {}  # installations profiles are copied from: id -> (instance, resolver)
+        self.publish = None
 
     def _load(self, p) -> Own:
         path = self.instance.data_dir / p.file
@@ -839,6 +852,10 @@ class Planner:
         if copy.printers_left:
             self.warnings.append({"code": "transfer_printers_left", "name": new_name, "printers": copy.printers_left})
 
+    def op_profile_publish(self, c: dict, i: int) -> None:
+        from .profile_publish import plan_publish
+        plan_publish(self, c)
+
     def op_profile_import(self, c: dict, i: int) -> None:
         """A profile from a file (orcaone/importer.py) as a new own one, or in place of the own
         one of that name. profile, parents and full as importer.analyse gave them to the page;
@@ -965,6 +982,7 @@ class Planner:
         self.warn_default_materials()
         writes, deletes, ops, expect = [], [], [], []
         now = str(int(time.time()))
+        nested_keys = tuple(self.publish.get("nested_keys", ())) if self.publish else ()
         for o in self.own:
             if o.deleted:
                 if o.orig_rel:
@@ -981,20 +999,20 @@ class Planner:
             content = dump_profile(o.data, style)
             if content == o.raw:
                 continue
-            if not check_profile(content, o.name):
+            if not check_profile(content, o.name, nested_keys):
                 raise Blocked("profile_invalid", name=o.name)
             info = dict(o.info or {"sync_info": "", "user_id": "", "setting_id": "", "base_id": ""})
             info["updated_time"] = now
             info_content = dump_info(info, style[1])
             keys = _changed_keys(o.orig_data or {}, o.data)
             if o.orig_rel is None:
-                writes += [Step("write", o.rel, content, check="profile", name=o.name), Step("write", o.info_rel, info_content)]
+                writes += [Step("write", o.rel, content, check="profile", name=o.name, nested_keys=nested_keys), Step("write", o.info_rel, info_content)]
                 ops.append(_op("create", o.rel, "own_profile", name=o.name, kind=o.kind,
                                inherits=o.data.get("inherits"), keys=keys))
                 ops.append(_op("create", o.info_rel, "profile_info", name=o.name))
             elif o.rel != o.orig_rel:
                 old_info = o.orig_rel[:-len(".json")] + ".info"
-                writes.append(Step("rename", o.orig_rel, content, to=o.rel, check="profile", name=o.name))
+                writes.append(Step("rename", o.orig_rel, content, to=o.rel, check="profile", name=o.name, nested_keys=nested_keys))
                 ops.append(_op("rename", o.orig_rel, "own_profile", name=o.profile.name, kind=o.kind, to=o.rel,
                                new_name=o.name))
                 if o.info_raw is not None:
@@ -1004,11 +1022,12 @@ class Planner:
                     writes.append(Step("write", o.info_rel, info_content))
                     ops.append(_op("create", o.info_rel, "profile_info", name=o.name))
             else:
-                writes += [Step("write", o.rel, content, check="profile", name=o.name), Step("write", o.info_rel, info_content)]
+                writes += [Step("write", o.rel, content, check="profile", name=o.name, nested_keys=nested_keys), Step("write", o.info_rel, info_content)]
                 ops.append(_op("modify", o.rel, "own_profile", name=o.name, kind=o.kind, keys=keys))
                 ops.append(_op("modify" if o.info_raw is not None else "create", o.info_rel, "profile_info", name=o.name))
             expect.append((o.kind, o.name))
-        steps = writes + deletes
+        steps = (self.publish or {}).get("native_steps", []) + writes + deletes
+        ops = (self.publish or {}).get("native_ops", []) + ops
         if self.conf != self.scan.conf:
             if not check_conf(self.conf):
                 raise Blocked("conf_unreadable")
@@ -1040,6 +1059,12 @@ def _restorable_now(instance: Instance) -> tuple[dict, set]:
     """({relative path: Path} of the .conf and every file in user/ a restore may touch, folders in user/)."""
     data_dir = instance.data_dir
     files, dirs = {}, set()
+    from .profile_native_paths import owned_files
+    managed = owned_files(data_dir)
+    for rel in managed:
+        files[rel] = data_dir / rel
+        if rel.count("/") > 1:
+            dirs.update((str(PurePosixPath(rel).parent), str(PurePosixPath(rel).parent.parent)))
     conf = data_dir / f"{instance.slicer}.conf"
     if conf.is_file():
         files[conf.name] = conf
@@ -1069,6 +1094,8 @@ def _store(plan: Plan) -> None:
 
 def make_plan(instance: Instance, processes: list, changes: list) -> dict:
     """Work out what changes would do. Raises InvalidChange for a change the API cannot read."""
+    if any(isinstance(c, dict) and c.get("op") == "profile_publish" for c in changes) and len(changes) != 1:
+        raise InvalidChange(None, "changes")
     # Before reading anything: whatever changes in user/ or the .conf from here on, another plan
     # applied meanwhile included, makes this plan outdated. A plan built on a profile another
     # one deletes would otherwise leave an orphan behind.
@@ -1096,10 +1123,13 @@ def make_plan(instance: Instance, processes: list, changes: list) -> dict:
         warnings = planner.warnings
         conf_before, conf_after = planner.scan.conf, planner.conf
         unlock_add, unlock_remove = planner.unlock_add, planner.unlock_remove
+        if planner.publish is not None:
+            expect = planner.publish["profiles"]
     plan = Plan(id=secrets.token_hex(8), instance_id=instance.id, steps=steps, snapshot=snapshot, public={},
                 blocked=blocked, reason="before_change",
                 reason_params={"ops": [c.get("op") for c in changes if isinstance(c, dict)]},
-                expect_loaded=expect, unlock_add=unlock_add, unlock_remove=unlock_remove)
+                expect_loaded=expect, unlock_add=unlock_add, unlock_remove=unlock_remove,
+                publish=planner.publish if planner is not None else None)
     if not steps and not blocked:
         warnings = warnings + [{"code": "nothing_to_do"}]
     plan.public = {"id": plan.id, "ops": ops, "conf_diff": conf_diff(conf_before, conf_after), "warnings": warnings,
@@ -1231,7 +1261,7 @@ def _verify(data_dir: Path, steps: list) -> bool:
             return False
         if raw != step.content:
             return False
-        if step.check == "profile" and not check_profile(raw, step.name):
+        if step.check == "profile" and not check_profile(raw, step.name, step.nested_keys):
             return False
         if step.check == "conf":
             try:
@@ -1267,11 +1297,25 @@ def _roll_back(instance: Instance, steps: list, backup_name: str) -> bool:
                     path.unlink(missing_ok=True)
             except OSError:
                 ok = False
+    from .profile_native_paths import vendor_of, safe_path
+    vendors = {vendor_of(rel) for step in steps for rel in (step.path, step.to) if rel and vendor_of(rel)}
+    for vendor in vendors:
+        for rel in (f"system/{vendor}/machine", f"system/{vendor}"):
+            if rel in dirs or not safe_path(instance.data_dir, rel):
+                continue
+            path = instance.data_dir / rel
+            if path.is_dir():
+                try:
+                    path.rmdir()
+                except OSError:
+                    ok = False
     return ok
 
 
 def apply(instance_id: str, plan_id) -> dict:
     """Write a plan. Raises OperationError."""
+    from .profile_jobs import report
+    report("check")
     with _lock:
         plan = _plans.get(plan_id) if isinstance(plan_id, str) else None
         if plan is None or plan.instance_id != instance_id:
@@ -1284,6 +1328,12 @@ def apply(instance_id: str, plan_id) -> dict:
             raise OperationError(block)
         if _tree_snapshot(instance) != plan.snapshot:
             raise OperationError("plan_outdated")
+        if any(outside_backup(instance.data_dir, rel, f"{instance.slicer}.conf")
+               for step in plan.steps for rel in (step.path, step.to) if rel):
+            raise OperationError("path_outside_backup")
+        if plan.publish is not None:
+            from .profile_publish import execute_publish
+            return execute_publish(instance, plan)
         if not plan.steps:
             _plans.pop(plan.id, None)
             return {"ok": True, "backup": None, "applied": 0, "warnings": []}

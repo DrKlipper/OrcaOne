@@ -45,6 +45,8 @@ import LogsPage from "./pages/logs.js";
 import KalibrierenPage, { calibrationChanges } from "./pages/kalibrieren.js";
 import LizenzPage from "./pages/lizenz.js";
 import PrintPanel from "./pages/print-panel.js";
+import ProfileEditorPage from "./pages/profile-editor-page.js";
+import ProfileWorkbench from "./pages/profile-workbench.js";
 
 const { createApp, ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } = Vue;
 
@@ -74,6 +76,8 @@ const PAGES = [
   { id: "uebersicht", area: "slicer", icon: "home", component: UebersichtPage },
   // What hangs on what, as a tree (the user's wish of 25.09.2026)
   { id: "zusammenhaenge", area: "slicer", icon: "tree", component: ZusammenhaengePage },
+  { id: "profile-editor", area: "slicer", icon: "sliders", component: ProfileEditorPage },
+  { id: "profile-workbench", area: "slicer", icon: "tree", component: ProfileWorkbench },
   { id: "prozesse", area: "slicer", icon: "layers", component: ProzessePage },
   { id: "filamente", area: "slicer", icon: "spool", component: FilamentePage },
   { id: "transfer", area: "slicer", icon: "transfer", component: TransferPage, sub: true },
@@ -133,7 +137,7 @@ const app = createApp({
     const pageKey = computed(() => {
       const printer = page.value?.printer ? ui.printer : "";
       return page.value?.standalone ? [route.value.page, printer].join("|")
-        : [route.value.page, ui.instId, route.value.modelIdx, printer, loadState.version].join("|");
+        : [route.value.page, ui.instId, route.value.modelIdx, printer, route.value.page === 'profile-editor' ? '' : loadState.version].join("|");
     });
     const pageProps = computed(() => PRINTER_PAGES.includes(route.value.page)
       ? { instId: ui.instId, modelIdx: route.value.modelIdx }
@@ -476,6 +480,10 @@ const app = createApp({
       narrow.value = ev.matches;
       navOpen.value = false;
     });
+    async function profilesApplied() {
+      if (changes.value.length) flash(T.printerMerge.refreshDeferred);
+      else await load();
+    }
     const navShown = computed(() => narrow.value ? navOpen.value : !navCollapsed.value);
     async function toggleNav() {
       if (narrow.value) {
@@ -956,7 +964,7 @@ const app = createApp({
       printers, activeModel, modelName, printerOpen, printerBtn, printerMenu, togglePrinter, pickPrinter, printerKey, menuPages,
       newPath, addError, addDir, removeFailed, changes, changeGroups, changesOpen, openChanges, closeChanges, discard,
       planned, done, plan, makePlan, backToList, runPlan, LANG, LANGUAGES, setLanguage, otherLanguage, dark, toggleTheme,
-      narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav, splash, splashSteps, splashPct, stepText,
+      profilesApplied, narrow, navOpen, navCollapsed, navBtn, navShown, toggleNav, splash, splashSteps, splashPct, stepText,
       riskShown, riskBusy, riskBtn, acceptRisk, appVersion,
       fileHost, printFiles, fileOpen, fileBtn, fileMenu, toggleFile, pickFile, pickLocal, fileKey, fileIsSet, fileName, fileFacts, pathOf,
       thumbOf, fileThumb, fileLocked, jobBusy, jobPaused, barBusy, running, openStatus, pauseResume, startBlock, printPanel, openPrint, cancelAsk, cancelPrint, stopArmed, emergencyStop, restartOpen, api,
@@ -1176,7 +1184,7 @@ const app = createApp({
           <klipper-actions v-if="klipperDown" :printer="ui.printer"/>
         </div>
         <!-- The printer part's pages once the printers with an address are read (common.js load) -->
-        <component v-if="inst || (page.standalone && (hosts || page.area !== 'printer'))" :is="page.component" :key="pageKey" v-bind="pageProps"/>
+        <component v-if="inst || (page.standalone && (hosts || page.area !== 'printer'))" :is="page.component" :key="pageKey" v-bind="pageProps" @applied="profilesApplied"/>
         <div v-else class="page">
           <p v-if="loadState.status === 'loading'" class="loading" role="status">{{ T.loading }}</p>
           <section v-else-if="loadState.status === 'error'" class="soon" role="alert">

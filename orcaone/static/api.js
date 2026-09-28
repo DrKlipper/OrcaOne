@@ -56,7 +56,31 @@ async function download(url, body) {
 const instUrl = (id) => `/api/instances/${encodeURIComponent(id)}`;
 const backupUrl = (id, name) => `${instUrl(id)}/backups/${encodeURIComponent(name)}`;
 
+async function profileJob(id, path, body, onProgress) {
+  const payload = { ...body, request_id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}` };
+  let job;
+  for (;;) {
+    try {
+      job = job
+        ? await request("GET", `${instUrl(id)}/profile-editor/jobs/${encodeURIComponent(job.job_id)}`)
+        : await request("POST", `${instUrl(id)}/profile-editor/${path}`, payload);
+    } catch (error) {
+      if (error.code !== "network") throw error;
+      onProgress?.({ ...(job || { state: "queued", phase: "check", completed: 0, total: null }), connection_lost: true });
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      continue;
+    }
+    onProgress?.({ ...job, connection_lost: false });
+    if (job.state === "failed") throw new ApiError(job.error?.error || "operation_failed", job.error || {});
+    if (job.state === "succeeded") return job.result;
+    await new Promise(resolve => setTimeout(resolve, 400));
+  }
+}
+
 export const api = {
+  profilePublishProgress: (id, body, onProgress) => profileJob(id, "publish-preview-job", body, onProgress),
+  applyProgress: (id, planId, onProgress) => profileJob(id, "apply-job", { plan_id: planId }, onProgress),
+  profileEditor: (id, path, body, method) => request(method || (body ? "POST" : "GET"), `${instUrl(id)}/profile-editor${path}`, body),
   data: () => request("GET", "/api/data"),
   // What the scan of GET /api/data does right now, for the boot screen.
   progress: () => request("GET", "/api/progress"),

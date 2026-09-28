@@ -2,6 +2,8 @@
 
 Alles im Einzelnen: jede Seite, eigene Daten, Aufbau, Tests und offene Punkte. Die Kurzfassung steht in der [README](../README.md).
 
+Der vollständige [Profil-Editor mit lokaler Timeline](PROFILE_EDITOR.md) ergänzt Drucker-, Prozess- und Filamentprofile. Entwürfe, Varianten und Checkpoints bleiben in OrcaOne; erst „In Orca übernehmen“ erzeugt einen Schreibplan. Der Stand der praktischen Prüfung ist im [Abnahmeprotokoll](PROFILE-ABNAHME.md) getrennt dokumentiert.
+
 Änderungen schreibt OrcaOne direkt in die Datenordner der Slicer, aber nur, solange der Slicer geschlossen ist. Ablauf:
 
 1. Plan mit „Das passiert“ anzeigen.

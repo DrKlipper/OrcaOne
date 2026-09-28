@@ -1,5 +1,7 @@
 # OrcaOne – Spezifikation und Build-Prompt für Claude Code
 
+Erweiterung vom 27.09.2026: vollständiger Profil-Editor für beide Slicer mit nutzerbestimmter Auswahl, effektiver Vererbung, Düsenvarianten und lokaler verzweigter Timeline. Maßgeblich sind [Editor-Design](docs/superpowers/specs/2026-09-27-profile-management-design.md) und [Anleitung](docs/PROFILE_EDITOR.md); frühere Nur-Lesen-Beschränkungen für Prozesse sind damit aufgehoben. Praktische Freigaben stehen ausschließlich im [Abnahmeprotokoll](docs/PROFILE-ABNAHME.md).
+
 OrcaOne = Orca + U1 („One“). Bis 23.09.2026 hieß die App „Orfix“ (Orca + Fix), bis 21.09.2026 „Orcix“. Eine lokale Web-App, mit der man die Profile von OrcaSlicer und Snapmaker Orca (kurz SnOrca) überblicken, aufräumen, importieren und exportieren kann.
 
 Stand: 21.09.2026. Die technischen Fakten in Abschnitt 4 stammen aus dem Quellcode von Snapmaker Orca 2.4.0 (github.com/Snapmaker/OrcaSlicer, Tag `v2.4.0`) und OrcaSlicer (github.com/OrcaSlicer/OrcaSlicer, Branch `main`). Am 21.09.2026 wurden sie gegen den Quellcode und eine echte SnOrca-Installation geprüft. Die Ergebnisse stehen in [docs/FINDINGS.md](docs/FINDINGS.md), der Plan für Phase 0 und 1 in [docs/PLAN.md](docs/PLAN.md). Wo diese Spezifikation und FINDINGS sich widersprechen, gilt FINDINGS.

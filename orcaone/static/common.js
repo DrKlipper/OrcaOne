@@ -25,7 +25,7 @@ export const loadState = reactive({ status: "loading", error: null, busy: false,
 // ------------------------------------------------------------ routing
 // #/<page>/<installation>, for one printer #/filamente/<installation>/<model index> (the same
 // for "prozesse"). The installation is part of the address, so a reload stays with it.
-export const PAGE_IDS = ["uebersicht", "zusammenhaenge", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "diagramme", "fehler", "steuern", "hoehenkarte", "druck3d", "druck2d", "dateien", "kamera", "konsole", "druckerlogs", "ssh", "netzwerk", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
+export const PAGE_IDS = ["uebersicht", "zusammenhaenge", "profile-editor", "profile-workbench", "filamente", "kalibrieren", "transfer", "vergleichen", "import", "prozesse", "drucker", "status", "diagramme", "fehler", "steuern", "hoehenkarte", "druck3d", "druck2d", "dateien", "kamera", "konsole", "druckerlogs", "ssh", "netzwerk", "aenderungen", "bereinigen", "sicherungen", "slicer", "details", "logs", "lizenz"];
 // Pages that show one printer at a time: the menu keeps the printer when switching between them.
 export const PRINTER_PAGES = ["filamente", "prozesse"];
 // The printer models OrcaOne knows as a Snapmaker U1: camera, live values, calibration and the
@@ -161,6 +161,7 @@ export const live = reactive({});
 // "Drucker" takes it away before it is written.
 export function modelShown(inst, m) {
   const s = live[inst.id];
+  if (m.group_id) return m.printers.some(p => s.own.has(p.name));
   return m.own ? s.own.has(m.model) && (!m.origin || s.packages.has(m.origin)) : s.models.has(m.model);
 }
 // The printers of an installation for the choice in the top bar, and the one the slicer starts
@@ -170,7 +171,7 @@ export function slicerModel(inst) {
   const models = printerModels(inst), start = live[inst.id]?.defaultPrinter;
   return models.find((m) => m.printers.some((p) => p.name === start)) || models[0] || null;
 }
-export const modelName = (m) => (m ? printerShortName(m.printers[0]?.name || m.model) : "");
+export const modelName = (m) => (m ? m.display_name || printerShortName(m.printers[0]?.name || m.model) : "");
 // A printer model of the chosen installation, else of any: the printer part does not depend on
 // one installation, but names and pictures come from there.
 export function anyModel(model) {

@@ -1,0 +1,11 @@
+export default { title: "In eine andere Installation kopieren", target: "Zielinstallation", name: "Name der Kopie",
+  preview: "Konvertierung prüfen", confirm: "Bestätigte Kopien lokal anlegen", open: "Zielvariante öffnen",
+  local: "Zunächst entsteht eine lokale Variante im Ziel. Die Übernahme in den Slicer bleibt ein eigener Schritt.",
+  losses: "Änderungen für das Ziel einzeln bestätigen", issues: "Diese Parameter müssen zuerst korrigiert werden",
+  none: "Eine zweite Installation wird benötigt.", choose: "Bitte auswählen", note: "Name der Zielvariante",
+  failed: "Konvertierung nicht möglich", loading: "Wird geprüft …", redacted: "Verwaltungs- oder Verbindungswert ausgelassen",
+  codes: { vector_truncated: "Zusätzliche Werte entfallen", enum_changed: "Nicht unterstützte Auswahl wird ersetzt",
+    range_replaced: "Wert liegt außerhalb des Zielbereichs und wird durch den Ziel-Default ersetzt", nil_replaced: "Automatikwert wird ersetzt",
+    unknown_field: "Im Ziel unbekannter Parameter entfällt", dimension_changed: "Bedeutung der Werteindizes ändert sich",
+    normalization_changed: "Zielformat erfordert andere Anzahl oder Struktur", empty_vector_replaced: "Leere Liste wird ersetzt",
+    secret_omitted: "Zugangsdaten werden nicht kopiert", metadata_omitted: "Verwaltungswert wird neu aufgebaut" } };

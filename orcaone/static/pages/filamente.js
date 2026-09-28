@@ -298,6 +298,8 @@ export const changes = computed(() => {
   return out;
 });
 
+import { openProfiles } from "./profile-session.js";
+
 export default {
   name: "FilamentePage",
   components: { FilamentEditor },
@@ -325,7 +327,7 @@ export default {
       : nozzle.value === "all" ? model.value.printers.map((p) => p.name) : [nozzle.value]);
     const entries = computed(() => model.value ? entriesOf(inst.value, model.value) : []);
     const readOnly = computed(() => !!inst.value.running);
-    const printerTitle = computed(() => model.value && printerShortName(model.value.printers[0]?.name || model.value.model));
+    const printerTitle = computed(() => model.value && (model.value.display_name || printerShortName(model.value.printers[0]?.name || model.value.model)));
     const nozzleText = computed(() => {
       const p = model.value && model.value.printers.find((x) => x.name === nozzle.value);
       return p ? T.changes.nozzles(nozzleLabel(p.variant)) : T.changes.allNozzles;
@@ -855,7 +857,7 @@ export default {
     });
 
     return {
-      T, F, MATERIALS, inst, model, gone, nozzle, printers, readOnly, printerTitle, nozzleText,
+      T, F, MATERIALS, inst, model, gone, nozzle, printers, readOnly, printerTitle, nozzleText, openProfiles,
       query, materials, closedKinds, panel, dragging, pickQuery,
       noPrinter, lostText, tree, shelf, shelfShown, filterActive, pickShelf, fixed, detail, detailValues, detailPrinters, nozzleSwitches, attachable, attachedAt, toggleAttach, scopeText, problemText,
       templateHits, PICK_LIMIT, openPicker, leaveAsk, editDirty, confirmLeave, stayHere, requestClose, guarded,
@@ -869,6 +871,7 @@ export default {
 
   template: `
     <div :class="['page-host', { 'with-panel': panel }]">
+      <button class="btn profile-entry" type="button" @click="openProfiles(inst.id)">{{ T.profileEditor.title }}</button>
       <!-- No printer in this installation; else app.js puts the one of the top bar into the address -->
       <div v-if="!model" class="page">
         <h1 id="page-title" tabindex="-1">{{ T.nav.pages.filamente }}</h1>
@@ -908,6 +911,7 @@ export default {
             <button v-for="p in model.printers" :key="p.name" type="button" class="nozzle-tile"
                     :aria-pressed="nozzle === p.name" @click="nozzle = p.name">
               <nozzle-icon :sizes="p.variant.split('+').map(Number)"/>{{ nozzleLabel(p.variant) }} mm
+              <small v-if="model.group_id">{{ p.label || p.name }}</small>
             </button>
           </div>
         </section>

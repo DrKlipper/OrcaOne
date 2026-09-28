@@ -2,11 +2,17 @@
 // into both. Sentence case; an action and its message use the same word (button "Add" -> message
 // "Added"). A key missing here shows in German (texts.js).
 import { plainName } from "./names.js";
+import profileEditor from "./profile-en.js";
+import profileTransfer from "./profile-transfer-en.js";
+import printerMerge from "./printer-merge-en.js";
 
 const n = (x) => x.toLocaleString("en-GB");
 const q = (name) => `“${name}”`;
 
 const T = {
+  profileEditor,
+  profileTransfer,
+  printerMerge,
   lang: "en",
   locale: "en-GB",  // numbers, dates and times (common.js): day first, 24-hour clock
   quote: q,
@@ -224,7 +230,7 @@ const T = {
     // The two parts of OrcaOne, switched at the top of the menu.
     areas: { label: "Area", slicer: "Slicer", printer: "Printers",
       hint: { slicer: "The slicers' profiles: filaments, processes, printers", printer: "The printers themselves: status, files, views, camera, console" } },
-    pages: { diagramme: "Charts", fehler: "Errors", uebersicht: "Overview", zusammenhaenge: "Connections", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", steuern: "Control", hoehenkarte: "Bed mesh", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Network", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
+    pages: { diagramme: "Charts", fehler: "Errors", uebersicht: "Overview", zusammenhaenge: "Connections", "profile-editor": "Edit profiles", "profile-workbench": "Compose profiles", filamente: "Filaments", prozesse: "Processes", kalibrieren: "Calibrate", drucker: "Printers", status: "Status", steuern: "Control", hoehenkarte: "Bed mesh", druck3d: "3D View", druck2d: "2D View", kamera: "Camera", dateien: "Files", konsole: "Console", druckerlogs: "Logs", ssh: "SSH", netzwerk: "Network", aenderungen: "Changes", bereinigen: "Clean 3MF", transfer: "Transfer", vergleichen: "Compare", import: "Import/Export", sicherungen: "Backups", slicer: "Installations", details: "Details", logs: "Logs", lizenz: "License" },
     byHint: "Who made OrcaOne, and the license",
     news: "changes since last time",
     faults: "errors reported",
@@ -316,6 +322,7 @@ const T = {
   // next. inst is the installation, data the rest of the answer ({"error": code, …}) or the
   // plan's blocked_params ({change, name, children}).
   blocked: {
+    reference_missing: (_inst, d) => `The referenced profile ${q(d.name || '')} is missing (${d.key || 'profile reference'}). Make the required profile available in the slicer or correct the reference in the profile editor. Then create a new preview.`,
     slicer_running: (inst) => `${inst.slicer} is running. Close it to save changes.`,
     slicer_maybe_running: (inst) => `${inst.slicer} may be running. Close all windows of ${inst.slicer}, then rescan.`,
     // Starting the slicer would reset every setting (FINDINGS 4.3); a restore is not stopped by it.
@@ -399,6 +406,7 @@ const T = {
     what: {
       own_profile: (p) => ({ filament: "Own filament", machine: "Own printer", process: "Own process" })[p.kind] || "Own profile",
       profile_info: "Profile metadata",
+      native_profile: "Shared printer model with nozzles",
       conf: "Slicer settings",
       file: "",
     },
