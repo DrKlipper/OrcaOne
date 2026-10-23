@@ -150,3 +150,57 @@ def test_secrets_never_leave(tmp_path):
     texts = [e["text"] for e in logs.read(tmp_path, "s.log.0")["entries"]]
     assert texts[0].endswith("username: u1, password: ***") and '"access_code": ***' in texts[1] and texts[2] == "token refreshed"
     assert logs.read(tmp_path, "s.log.0", query="Geh eim")["matched"] == 0
+
+
+@pytest.mark.parametrize("name,raw", [
+    ("network.log.enc", b"printable but encrypted"),
+    ("network.LOG.ENC", b""),
+    ("binary.log.0", bytes(range(256)) * 16),
+    ("nul.log", b"header\x00payload"),
+    ("invalid.log", b"\xff\xfe" * 200),
+    ("controls.log", b"\x01\x02\x03" * 200),
+], ids=["encrypted", "encrypted-uppercase", "binary", "nul", "invalid-utf8", "controls"])
+def test_unreadable_files_are_listed_but_never_returned(tmp_path, name, raw):
+    write_log(tmp_path, "text.log.0", LOG, 1000)
+    path = tmp_path / "log" / name
+    path.write_bytes(raw)
+    os.utime(path, (2000, 2000))
+    found = logs.files(tmp_path)
+    assert [(f["name"], f["readable"]) for f in found] == [(name, False), ("text.log.0", True)]
+    assert found[0]["started"] is None
+    with pytest.raises(logs.LogError, match="^log_not_readable$"):
+        logs.read(tmp_path, name)
+
+
+def test_unicode_text_and_empty_files_are_readable(tmp_path):
+    write_log(tmp_path, "unicode.log", "\tGrüße 世界 😀\r\n" * 3000, 1000)
+    write_log(tmp_path, "empty.log", "", 500)
+    assert all(f["readable"] for f in logs.files(tmp_path))
+    assert "世界" in logs.read(tmp_path, "unicode.log")["entries"][0]["text"]
+    assert logs.read(tmp_path, "empty.log")["entries"] == []
+
+
+def test_read_checks_binary_after_text_header_and_listing(tmp_path, monkeypatch):
+    write_log(tmp_path, "mixed.log", LOG * 100, 1000)
+    listed = logs.files(tmp_path)
+    with (tmp_path / "log" / "mixed.log").open("ab") as fh:
+        fh.write(bytes(range(256)) * 40)
+    monkeypatch.setattr(logs, "files", lambda _: listed)
+    with pytest.raises(logs.LogError, match="^log_not_readable$"):
+        logs.read(tmp_path, "mixed.log")
+
+
+def test_api_rejects_binary_without_content(server, fake_home):
+    data_dir = copy_fixture("snorca", fake_home / ".config" / "Snapmaker_Orca")
+    write_log(data_dir, "network.log.enc", "synthetic encrypted payload", 2000)
+    inst = json.loads(call(f"{server}/api/data")[1])["instances"][0]
+    base = f"{server}/api/instances/{inst['id']}/logs"
+    assert json.loads(call(base)[1])["files"][0]["readable"] is False
+    status, body = call(f"{base}/network.log.enc")
+    assert status == 400 and json.loads(body) == {"error": "log_not_readable"}
+
+
+def test_listing_sample_boundary_does_not_reject_unicode(tmp_path):
+    write_log(tmp_path, "boundary.log", "a" * 8190 + "😀", 1000)
+    assert logs.files(tmp_path)[0]["readable"] is True
+    assert logs.read(tmp_path, "boundary.log")["entries"]

@@ -1918,6 +1918,8 @@ const T = {
     loading: "Lese Logs …",
     none: "Dieser Slicer hat noch keine Logs geschrieben.",
     file: "Start",
+    unreadable: "nicht lesbar (verschlüsselt oder binär)",
+    noneReadable: "Keine lesbare Textlogdatei vorhanden.",
     fileOption: (when, size, last) => `${when} · ${size}${last ? " · letzter Start" : ""}`,
     refresh: "Aktualisieren",
     refreshTitle: "Läuft der Slicer, schreibt er weiter. Holt den neuesten Stand.",
@@ -1934,6 +1936,7 @@ const T = {
     more: (k) => ` … und ${n(k)} Zeichen mehr`,
     where: "Ordner:",
     errors: {
+      log_not_readable: "Diese Logdatei ist verschlüsselt oder binär und kann nicht als Text angezeigt werden.",
       log_not_found: "Diese Logdatei gibt es nicht mehr. Klicke auf „Aktualisieren“.",
     },
   },
