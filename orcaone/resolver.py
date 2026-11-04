@@ -11,6 +11,9 @@
   condition if the list is empty, then the list, and for own printers their direct parent.
 - The library exclusion differs between Snapmaker Orca and OrcaSlicer main
   (update_library_profile_excluded_from in both Preset.cpp).
+- OrcaSlicer 2.5 layers a preset's `include` bases under its own values, between the parent
+  chain and them, the last listed first (load_vendor_preset): layers() gives lookup, value and
+  value_entry this order.
 """
 
 import re
@@ -96,6 +99,7 @@ class Resolver:
         self.scan = scan
         self.snorca = scan.snorca
         self._chains = {}
+        self._layers = {}
         by_name = sorted(scan.profiles.values(), key=lambda p: p.name)
         # What the slicer's preset collections hold after loading the vendors: selectable
         # system profiles only (FINDINGS 4.5). renamed_from maps old names, first one wins
@@ -200,10 +204,36 @@ class Resolver:
             self._chains[key] = (chain, complete)
         return self._chains[key]
 
+    def layers(self, p: Profile) -> list:
+        """p and everything its values stand on, highest priority first: p itself, then its
+        includes (the last one listed wins, load_vendor_preset), each with what it stands on,
+        then the parent chain the same way. Includes stay within the profile's package; one not
+        found there is skipped, as the slicer logs it and loads without it. Approximation: an
+        included base contributes its resolved values, the slicer takes its diff against the
+        default — a value it shares with the default would not shadow a lower layer there."""
+        key = id(p)
+        if key not in self._layers:
+            out, seen = [], {key}
+
+            def visit(q: Profile) -> None:
+                out.append(q)
+                for name in reversed(q.includes):
+                    inc = self.scan.profiles.get((q.package, q.kind, name))
+                    if inc is not None and id(inc) not in seen:
+                        seen.add(id(inc))
+                        visit(inc)
+                parent = self.parent(q)
+                if parent is not None and id(parent) not in seen:
+                    seen.add(id(parent))
+                    visit(parent)
+
+            visit(p)
+            self._layers[key] = out
+        return self._layers[key]
+
     def lookup(self, p: Profile, key: str):
         """(value, source profile) of key: the first profile in p and its chain that sets it."""
-        chain, _ = self.chain(p)
-        for q in [p] + chain:
+        for q in self.layers(p):
             if key in q.values:
                 return q.values[key], q
         return None, None
@@ -218,7 +248,8 @@ class Resolver:
         gives: the filament editor shows it as placeholder and goes back to it."""
         if chain is None:
             chain, complete = self.chain(p)
-        source = next((q for q in [p] + chain if key in q.values), None)
+        layers = self.layers(p)
+        source = next((q for q in layers if key in q.values), None)
         if source is None:
             if not complete or key not in EDITABLE_DEFAULTS:
                 # A broken chain is not loaded by the slicer at all, so there is no effective value.
@@ -231,12 +262,17 @@ class Resolver:
             # Snapmaker Orca keeps a second value for the high-flow hotend (FINDINGS 4.4).
             entry["high_flow"] = items[1]
         if source is p and p.origin_kind == "user" and complete:
-            if chain:
-                inherited = self.value_entry(chain[0], key, chain[1:], True)
-                inherited.pop("own")
-            else:
+            below = next((q for q in layers[1:] if key in q.values), None)
+            if below is None and chain and key not in EDITABLE_DEFAULTS:
+                inherited = {"value": None, "source": None}
+            elif below is None:
                 # A root profile has no template, only the slicer default.
                 inherited = {"value": EDITABLE_DEFAULTS.get(key), "source": None, "default": True}
+            else:
+                bitems = as_list(below.values[key])
+                inherited = {"value": bitems[0] if bitems else None, "source": below.name}
+                if len(bitems) > 1:
+                    inherited["high_flow"] = bitems[1]
             entry["inherited"] = inherited
         return entry
 

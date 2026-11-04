@@ -12,6 +12,7 @@ import pytest
 from conftest import call, copy_fixture
 from orcaone import importer, scanner
 from orcaone.resolver import Resolver, first
+from test_opc import build_cache_v2
 
 U1_04 = "Snapmaker U1 (0.4 nozzle)"
 BASIC = "Snapmaker PLA Basic @U1"
@@ -214,6 +215,22 @@ def test_analysis_against_the_installation(target):
     alone = {"Metadata/filament_settings_1.config": filament("Alleine", inherits="Fehlt @X", nozzle_temperature=["210"], filament_type=["PLA"])}
     entry = importer.analyse(importer.read(zip_of(alone), "p.3mf"), target, "Snapmaker_Orca")[0]
     assert (entry["status"], entry["parent"]) == ("new", None)
+
+
+def test_analysis_against_a_cache_v2_installation(tmp_path):
+    """OrcaSlicer 2.5 delivers system profiles as .opc CACHE_VERSION 2: the analysis resolves
+    parents and include layers from it instead of reporting every parent as missing."""
+    data_dir = tmp_path / "OrcaSlicer"
+    (data_dir / "system").mkdir(parents=True)
+    (data_dir / "system" / "TestMaker.opc").write_bytes(build_cache_v2(filament=[
+        ("Basis", {"nozzle_temperature": "220", "filament_type": "PLA"}, "", [], "false"),
+        ("Träger", {"filament_vendor": "TestMaker"}, "", ["Basis"], "true")]))
+    res = Resolver(scanner.scan(data_dir, "OrcaSlicer"))
+    assert not [p for p in res.scan.packages if p.error]
+    source = importer.read(json.dumps(filament("Neu", inherits="Träger")).encode(), "Neu.json")
+    entry = importer.analyse(source, res, "OrcaSlicer")[0]
+    assert (entry["status"], entry["parent"]) == ("new", "Träger")
+    assert entry["values"]["nozzle_temperature"] == "220"    # from the include layer of "Träger"
 
 
 def test_hang_a_filament_onto_a_printer_here(target):

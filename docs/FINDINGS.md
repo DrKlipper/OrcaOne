@@ -141,7 +141,7 @@ Schreibweise: **SnOrca** = Snapmaker Orca 2.4.0, **Orca** = OrcaSlicer. Wo Orca-
 | Spezifikation | Befund | Folge für OrcaOne |
 |---|---|---|
 | Beispiel `SUNLU PLA+ @System` | Zeichen für Zeichen bestätigt. | – |
-| Wichtige Schlüssel | Metaschlüssel sind `version`, `name`, `type`, `from`, `inherits`, `instantiation`, `setting_id`, `filament_id`, `description`, `renamed_from`, `url` und `is_custom_defined` (nur SnOrca). **`base_id` steht nie in einer Profil-JSON**, nur in der `.info`. **`type` fehlt in Benutzer-JSONs.** | Typ aus dem Ordner ableiten. `base_id` aus der `.info` lesen. |
+| Wichtige Schlüssel | Metaschlüssel sind `version`, `name`, `type`, `from`, `inherits`, `instantiation`, `setting_id`, `filament_id`, `description`, `renamed_from`, `url` und `is_custom_defined` (nur SnOrca), dazu `include` (nur Orca 2.5: ein Name oder eine Liste von Basisprofilen, eingeschichtet unter die eigenen Werte). **`base_id` steht nie in einer Profil-JSON**, nur in der `.info`. **`type` fehlt in Benutzer-JSONs.** | Typ aus dem Ordner ableiten. `base_id` aus der `.info` lesen. |
 | `from`: `system` bzw. `User` | Systemdateien haben `"system"`. Beim Speichern schreibt der Slicer `"User"`, `"Project"`, `"System"` oder `"Default"`, Orca main auch `"Bundle"`. Der Exportdialog schreibt `""`. In Orca main hat sogar eine Systemdatei `"from": "User"`. | Herkunft **nie** aus `from` ableiten, sondern aus dem Speicherort. |
 | `renamed_from` | Immer ein **String**, mehrere Namen mit `;` getrennt, optional in Anführungszeichen mit C-Escapes. Fehlt der Schlüssel und enthält der Name ein `@`, gilt der Name ohne `@` als impliziter Eintrag: `Generic PLA @System` wird zu `Generic PLA System`. | Den Resolver und die Sichtbarkeit auch über implizite Namen prüfen. |
 | Werte als String-Arrays | Nur Strings oder String-Arrays. Zahlen und Bools verwirft der Slicer. Derselbe Schlüssel kann skalar oder als Array vorkommen. SnOrca hat Flow-Varianten `*_flow_support = ["standard","high_flow"]` mit einem Wert je Variante, die Orca nicht kennt. | `"x"` und `["x"]` beim Vergleich gleich behandeln. Arrays als „Standard / High Flow“ beschriften. Beim Übertragen SnOrca → Orca nur den ersten Wert übernehmen. |
@@ -392,16 +392,18 @@ Der Prototyp liegt in [prototypes/opc](../prototypes/opc/README.md). Er hat alle
 
 ```
 Kopf, 20 Byte, little endian
-  u32 magic 0x4F52435A ("ZCRO" auf der Platte) · u32 version (1) · u64 data_size · u32 crc32 (zlib.crc32 über den Rumpf)
+  u32 magic 0x4F52435A ("ZCRO" auf der Platte) · u32 version · u64 data_size · u32 crc32 (zlib.crc32 über den Rumpf)
 Rumpf (cereal binär; Längen u64, Anzahlen in Listen, Konfiguration und Enums u32)
   u32 cache_version · str vendor_name · str vendor_version ("2.4.0.15")
   Wörterbuch: vec<str> keys · vec<u16> types (ConfigOptionType) · vec<str> enum_values ([0] = "")
   VendorMap: size + (str, VendorProfile{name, id, config_version, …, vec<PrinterModel> models, set default_filaments, …})
   3 Listen: process, filament, machine – je u32 count × {str name, str sub_path,
-      config: u32 n × (u16 key_index, Wert nach Typ), str inherits, str description,
-      str instantiation, str setting_id, str filament_id, vec<str> renamed_from}
+      config: u32 n × (u16 key_index, Wert nach Typ), str inherits, [ab Version 2: vec<str> includes],
+      str description, str instantiation, str setting_id, str filament_id, vec<str> renamed_from}
   u64 parse_errors
 ```
+
+**Versionen:** `1` war die Nightly vom September 2026. **`2` seit dem 24.09.2026** (Commit `2b602943a5`, „Load profile includes so synced Bambu Lab presets get their G-code back“, damit in der 2.5.0-Alpha): Jeder Eintrag trägt nach `inherits` die Liste `includes` (Profil-JSONs: Schlüssel `"include"`, ein Name oder eine Liste). Der Slicer schichtet die Werte eines solchen Basisprofils zwischen Elternkette und eigenen Werten ein, in der angegebenen Reihenfolge (`load_vendor_preset`): Die Basis liefert ihre aufgelöste Konfiguration als Differenz zur Standardkonfiguration, Includes bleiben im selben Herstellerpaket, ein fehlender Include wird nur geloggt, das Profil lädt trotzdem. OrcaOne bildet das in `resolver.layers()` ab (Näherung: die volle Kette des Includes statt der Differenz).
 
 **Typcodes:**
 
@@ -430,7 +432,7 @@ Nil-Werte: NaN, `INT_MAX` bzw. 255.
 
 **Regeln für OrcaOne:**
 
-- Nur `CACHE_VERSION` 1 parsen, vorher Magic, Größe und CRC prüfen.
+- `CACHE_VERSION` 1 und 2 parsen, vorher Magic, Größe und CRC prüfen.
 - Bei unbekannter Version nicht raten. Liegt daneben ein JSON, dieses lesen. Sonst den Hersteller als „vorhanden, Format nicht unterstützt“ zeigen und abhängige Benutzerprofile als „nicht auflösbar“ markieren.
 - Liegen `.opc` und JSON nebeneinander, nimmt Orca den Cache, wenn dessen Stempel mindestens so neu ist wie das JSON (`cache_covers`). OrcaOne wendet dieselbe Regel an.
 - Eigene Profile schreibt Orca main weiter als JSON plus `.info` (`Preset::save`, `load_presets` in `Preset.cpp`), `.opc` gibt es nur in `system/`. Auf einer Kopie des echten Ordners geprüft (23.09.2026): Ein neues eigenes Profil auf einem Profil aus `Snapmaker.opc` bekommt `version` 2.5.0 und eine `.info` mit der `base_id` aus der `.opc`. Die `.conf` bleibt mit Tab eingerückt, Wiederherstellen ergibt die Kopie Byte für Byte.

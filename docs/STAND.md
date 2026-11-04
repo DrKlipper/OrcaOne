@@ -1,6 +1,6 @@
 # Arbeitsstand
 
-Stand 26.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, wo was liegt. Was eine Seite genau tut, steht im [Handbuch](HANDBUCH.md), geprüfte Fakten stehen in [FINDINGS](FINDINGS.md), der Verlauf in `git log`.
+Stand 04.11.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, wo was liegt. Was eine Seite genau tut, steht im [Handbuch](HANDBUCH.md), geprüfte Fakten stehen in [FINDINGS](FINDINGS.md), der Verlauf in `git log`.
 
 ## Überblick
 
@@ -10,7 +10,9 @@ Stand 26.09.2026. Übergabe zwischen Sessions: was OrcaOne kann, was offen ist, 
 - **Sprachen:** Deutsch und Englisch.
 - **Start:** `./orcaone.sh` bzw. `orcaone.cmd`, Port 4711, auf Wunsch als App-Fenster mit eigenem Symbol ([STARTEN-UND-BAUEN](STARTEN-UND-BAUEN.md)).
 - **Schreiben:** nur in `user/**` und in die `.conf`, immer mit Plan, Sicherung und erneutem Einlesen. An Drucker schickt OrcaOne nur auf Klick: Licht, Löschen und Druckstart beim U1, oben in der Leiste Druckstart, Abbruch und Notstopp bei jedem Klipper-Drucker; sonst liest es über Moonraker. Dazu G-Code auf der Seite „Konsole“ und SSH auf der Seite „SSH“.
-- **Tests:** 355. Unter Windows 344 grün und 11 nur für Linux übersprungen (26.09.); unter Linux noch nicht gelaufen (`.lenv/bin/python -m pytest`).
+- **Tests:** 394. Unter Windows 344 grün und 11 nur für Linux übersprungen (26.09.); unter Linux 394 grün (04.11., dafür musste `.lenv` neu angelegt werden: es zeigte auf ein per Systemupdate entferntes Python 3.14, jetzt Python 3.15).
+- **Dann (04.11.):**
+  - **.opc Cache-Version 2** (OrcaSlicer 2.5, seit dem Commit vom 24.09. mit `include` je Profil): `opc.py` liest die Versionen 1 und 2, der Resolver schichtet Includes zwischen Elternkette und eigene Werte (`resolver.layers()`, genutzt von Import, Übertragen und den Schnappschüssen), der Profil-JSON-Schlüssel `"include"` ist Metaschlüssel statt Einstellung. Vorher ging die Profilanalyse gegen eine 2.5-Installation nicht: ohne lesbares Paket fehlten alle Systemprofile und jedes Elternprofil galt als „fehlt“. Tests: eigener v2-Cache-Bau in `tests/test_opc.py`, Schichtreihenfolge in `test_resolver.py`, Analyse gegen eine v2-Installation in `test_importer.py`.
 - **Dann (26.09.):**
   - **Netzwerk:** Reiter mit Übersicht, WLAN zuerst; ein Router, der Ping ignoriert (UniFi), gilt als erreichbar, wenn das Internet antwortet oder er per ARP antwortete; eine Warnfarbe.
   - **Anmeldung per SSH** als eine Auswahl je Drucker (Passwort zuerst und ohne Wahl, Schlüssel automatisch, ein Schlüssel), Erklärung zum Aufklappen, Schlüssel `orcaone`; auf „Netzwerk“ nur die Schlüssel. Warnung „Schlüssel passt nicht mehr“ nur, wenn genau der gewählte probiert wurde (Prüfung mit 8 Agenten, 5 Befunde behoben).

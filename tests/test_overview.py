@@ -154,7 +154,7 @@ def test_orca(orca):
 def test_unknown_opc_version_is_a_warning(fake_home, tmp_path):
     data_dir = copy_fixture("orca", tmp_path / "orca")
     cache = data_dir / "system" / "Snapmaker.opc"
-    cache.write_bytes(patched(cache.read_bytes(), cache_version=2))
+    cache.write_bytes(patched(cache.read_bytes(), cache_version=3))
     data = build(data_dir)
     warning = next(w for w in data["warnings"] if w["code"] == "package_unreadable")
     assert (warning["names"], warning["problem"]) == (["Snapmaker"], "opc_unsupported_version")
@@ -168,7 +168,7 @@ def test_profiles_on_an_unreadable_package_are_unresolved_not_orphaned(fake_home
     found are "nicht auflösbar". They must not look orphaned and land in the clean-up."""
     data_dir = copy_fixture("orca", tmp_path / "orca")
     cache = data_dir / "system" / "Snapmaker.opc"
-    cache.write_bytes(patched(cache.read_bytes(), cache_version=2))
+    cache.write_bytes(patched(cache.read_bytes(), cache_version=3))
     user = data_dir / "user" / "default"
     for kind, name, parent in (("filament", "Mein PLA", "Panchroma PLA @Snapmaker U1"),
                                ("machine", "Mein U1", "Snapmaker U1 (0.4 nozzle)")):
