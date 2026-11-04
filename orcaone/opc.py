@@ -1,9 +1,10 @@
-"""Read an OrcaSlicer vendor preset cache (system/<Vendor>.opc, OrcaSlicer 2.5.0-dev).
+"""Read an OrcaSlicer vendor preset cache (system/<Vendor>.opc, OrcaSlicer 2.5).
 
 The layout follows src/libslic3r/PresetCacheFormat.{hpp,cpp}, Config.hpp and Preset.hpp of
 OrcaSlicer main, written by cereal's BinaryOutputArchive (little endian, sizes are uint64).
-Only CACHE_VERSION 1 is parsed; magic, size and CRC are checked first. Anything else raises
-OpcError with an error code instead of guessing. Details: docs/FINDINGS.md, "Das .opc-Format".
+CACHE_VERSION 1 and 2 are parsed (2 of 24.09.2026 inserts a preset's "includes" after
+"inherits"); magic, size and CRC are checked first. Anything else raises OpcError with an
+error code instead of guessing. Details: docs/FINDINGS.md, "Das .opc-Format".
 """
 
 import math
@@ -13,7 +14,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 CACHE_MAGIC = 0x4F52435A  # "ORCZ", stored little endian -> bytes "ZCRO"
-SUPPORTED_CACHE_VERSIONS = {1}  # CACHE_VERSION in PresetCacheFormat.cpp
+# CACHE_VERSION in PresetCacheFormat.cpp: 1 was the 2.5.0-dev of September 2026, 2 came with
+# CachedPreset.includes on 24.09.2026 (commit 2b602943a5, "Load profile includes").
+SUPPORTED_CACHE_VERSIONS = {1, 2}
 HEADER = struct.Struct("<IIQI")  # magic, version, data_size, crc32 (#pragma pack(1), 20 bytes)
 
 INT_MAX = 2**31 - 1   # nil of ConfigOptionIntsNullable / EnumsGenericNullable
@@ -142,6 +145,7 @@ class Entry:
     setting_id: str
     filament_id: str
     renamed_from: list
+    includes: list = field(default_factory=list)  # CACHE_VERSION 2: layered under config, in this order
 
 
 @dataclass
@@ -250,14 +254,15 @@ def _config(r: Reader, dic: Dictionary) -> dict:
     return config
 
 
-def _entries(r: Reader, dic: Dictionary) -> list[Entry]:
+def _entries(r: Reader, dic: Dictionary, version: int) -> list[Entry]:
     entries = []
     for _ in range(r.u32()):
         # visit_entry(): name, sub_path, config, then the remaining strings.
         name, sub_path = r.string(), r.string()
         config = _config(r, dic)
-        entries.append(Entry(name, sub_path, config, inherits=r.string(), description=r.string(),
-                             instantiation=r.string(), setting_id=r.string(),
+        entries.append(Entry(name, sub_path, config, inherits=r.string(),
+                             includes=r.strings() if version >= 2 else [],
+                             description=r.string(), instantiation=r.string(), setting_id=r.string(),
                              filament_id=r.string(), renamed_from=r.strings()))
     return entries
 
@@ -292,9 +297,9 @@ def parse_opc(blob: bytes) -> VendorCache:
         key = r.string()
         vendors[key] = _vendor_profile(r)
     cache = VendorCache(cache_version, vendor_name, vendor_version, vendors)
-    cache.process = _entries(r, dic)
-    cache.filament = _entries(r, dic)
-    cache.machine = _entries(r, dic)
+    cache.process = _entries(r, dic, cache_version)
+    cache.filament = _entries(r, dic, cache_version)
+    cache.machine = _entries(r, dic, cache_version)
     cache.parse_errors = r.u64()
     if r.pos != len(body):
         raise OpcError("opc_corrupt", "trailing bytes")

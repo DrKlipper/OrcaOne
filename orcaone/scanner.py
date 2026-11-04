@@ -30,8 +30,9 @@ KINDS = ("machine", "process", "filament")
 TYPE_NAMES = {"machine": {"machine", "printer"}, "process": {"process", "print"}, "filament": {"filament"}}
 
 # Meta keys of a profile JSON; everything else is a setting (FINDINGS 4.4). The slicer reads them
-# into a map of strings (ConfigBase::load_from_json), another type makes it reject the file.
-META_KEYS = {"version", "name", "type", "from", "inherits", "instantiation", "setting_id",
+# into a map of strings (ConfigBase::load_from_json), another type makes it reject the file —
+# except "include" (OrcaSlicer 2.5): a list of names, layered under the own values.
+META_KEYS = {"version", "name", "type", "from", "inherits", "include", "instantiation", "setting_id",
              "filament_id", "description", "renamed_from", "url", "is_custom_defined"}
 # Semver as the slicer accepts it: 2 to 4 numeric parts, leading zeros allowed (FINDINGS 4.4).
 # A pre-release or build suffix ("2.5.0-dev") is accepted as well, semver.c knows them.
@@ -47,6 +48,7 @@ class Profile:
     inherits: str = ""
     instantiation: str = "true"
     renamed_from: list = field(default_factory=list)  # explicit or implicit, FINDINGS 4.4
+    includes: list = field(default_factory=list)  # OrcaSlicer 2.5: bases layered under the own values
     values: dict = field(default_factory=dict)        # own settings only: key -> str or list
     setting_id: str = ""       # system profiles: the id an own child keeps as base_id in its .info
     file: str | None = None    # path relative to the data directory; the cache file for an .opc package
@@ -145,6 +147,21 @@ def implicit_renamed_from(name: str, renamed_from: list) -> list:
     return [name[:pos] + name[pos + 1:]]
 
 
+def includes_of(data: dict) -> list[str]:
+    """The "include" key of a profile (OrcaSlicer 2.5, load_vendor_preset): names of base profiles
+    whose values are layered under the profile's own, in the order given. One bare name or a list —
+    in a vendor JSON the list is a real array, in the slicer's meta map its text."""
+    raw = data.get("include")
+    if isinstance(raw, str) and raw.strip().startswith("["):
+        try:
+            raw = loads(raw)
+        except ValueError:
+            raw = ""
+    if isinstance(raw, list):
+        return [v for v in raw if isinstance(v, str)]
+    return [raw.strip()] if isinstance(raw, str) and raw.strip() else []
+
+
 def profile_from_json(data: dict, kind: str, package: str, name: str | None = None) -> Profile:
     renamed = data.get("renamed_from", [])
     if isinstance(renamed, str):
@@ -160,6 +177,7 @@ def profile_from_json(data: dict, kind: str, package: str, name: str | None = No
         inherits=inherits if isinstance(inherits, str) else "",
         instantiation=instantiation if isinstance(instantiation, str) else "true",
         renamed_from=implicit_renamed_from(name, [r for r in renamed if isinstance(r, str)]),
+        includes=includes_of(data),
         values={k: v for k, v in data.items() if k not in META_KEYS},
         setting_id=setting_id if isinstance(setting_id, str) else "",
     )
@@ -254,6 +272,7 @@ def _load_opc_package(scan: Scan, path: Path, cache: opc.VendorCache) -> None:
                 name=entry.name, kind=kind, package=cache.vendor_name, inherits=entry.inherits,
                 instantiation=entry.instantiation or "true",
                 renamed_from=implicit_renamed_from(entry.name, entry.renamed_from),
+                includes=list(entry.includes),
                 values={k: opc.to_json_value(o) for k, o in entry.config.items()},
                 setting_id=entry.setting_id, file=package.file,
             )
@@ -342,8 +361,9 @@ def _own_profile_json(scan: Scan, path: Path, kind: str, load_pass: int, bundle:
     stem = path.stem
     data = _read_json(path)
     # A file that does not parse, or non-string metadata, makes the slicer delete .json and
-    # .info at its next start (FINDINGS 4.4).
-    if not isinstance(data, dict) or any(k in data and not isinstance(data[k], str) for k in META_KEYS):
+    # .info at its next start (FINDINGS 4.4). "include" is a list, it is exempt from strings-only.
+    if not isinstance(data, dict) or any(k in data and k != "include" and not isinstance(data[k], str)
+                                         for k in META_KEYS):
         return Profile(name=stem, kind=kind, package="", file=rel, load_pass=load_pass, problem="invalid_json", bundle=bundle)
     json_name = data.get("name", "")
     # Snapmaker Orca takes the "name" field, OrcaSlicer >= 2.4 the file name (FINDINGS 4.4).

@@ -7,6 +7,7 @@ from conftest import FIXTURES, copy_fixture
 from orcaone import scanner
 from orcaone.resolver import Resolver
 from orcaone.scanner import LIBRARY, Profile, Scan
+from test_opc import build_cache_v2
 from test_scanner import write_profile
 
 U1_02, U1_04 = "Snapmaker U1 (0.2 nozzle)", "Snapmaker U1 (0.4 nozzle)"
@@ -177,3 +178,34 @@ def test_filaments_list_has_three_states(tmp_path):
     names_in_list = set(res.filament_list())
     assert not res.in_list(res.scan.profiles[(LIBRARY, "filament", "SUNLU PLA+ @System")], names_in_list)
     assert res.in_list(res.scan.profiles[("Snapmaker", "filament", "Snapmaker PLA Basic @U1")], names_in_list)
+
+
+def _opc_installation(tmp_path, filament):
+    """An OrcaSlicer 2.5 installation: system profiles only in a cache of CACHE_VERSION 2."""
+    data_dir = tmp_path / "OrcaSlicer"
+    (data_dir / "system").mkdir(parents=True)
+    (data_dir / "system" / "TestMaker.opc").write_bytes(build_cache_v2(filament=filament))
+    return Resolver(scanner.scan(data_dir, "OrcaSlicer"))
+
+
+def test_includes_layer_under_the_own_values(tmp_path):
+    """OrcaSlicer 2.5 (load_vendor_preset): own values > includes, later first > earlier > parent."""
+    res = _opc_installation(tmp_path, [
+        ("Elternprofil", {"x": "vom Eltern", "farbe": "grau"}, "", [], "true"),
+        ("Erste", {"x": "erste", "y": "erste"}, "", [], "false"),
+        ("Zweite", {"y": "zweite"}, "", [], "false"),
+        ("Kind", {"eigen": "kind"}, "Elternprofil", ["Erste", "Zweite"], "true"),
+    ])
+    p = res.collection["filament"]["Kind"]
+    assert p.includes == ["Erste", "Zweite"]
+    assert res.value(p, "eigen") == "kind"       # the profile's own value
+    assert res.value(p, "y") == "zweite"         # the later include wins over the earlier
+    assert res.value(p, "x") == "erste"          # an include wins over the parent
+    assert res.value(p, "farbe") == "grau"       # the parent fills what no include sets
+
+
+def test_a_missing_include_is_skipped(tmp_path):
+    """The slicer logs a missing include and loads without it (load_vendor_preset)."""
+    res = _opc_installation(tmp_path, [("Kind", {"a": "1"}, "", ["Gibt es nicht"], "true")])
+    p = res.collection["filament"]["Kind"]
+    assert res.value(p, "a") == "1" and res.chain(p)[1]

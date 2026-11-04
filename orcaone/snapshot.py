@@ -63,7 +63,7 @@ def items(scan: scanner.Scan, res: Resolver) -> dict:
     for p in scan.profiles.values():
         if p.selectable:
             values = {}
-            for q in [p] + res.chain(p)[0]:
+            for q in res.layers(p):
                 for key, value in q.values.items():
                     values.setdefault(key, value)
             found[f"system/{p.kind}/{p.name}"] = [p.package, _hash(values)]

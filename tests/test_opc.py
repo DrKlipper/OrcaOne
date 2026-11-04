@@ -18,6 +18,42 @@ def patched(blob: bytes, header_version: int | None = None, cache_version: int |
     return opc.HEADER.pack(magic, header_version or version, len(body), zlib.crc32(body)) + bytes(body)
 
 
+def pack_str(text: str) -> bytes:
+    raw = text.encode("utf-8")
+    return struct.pack("<Q", len(raw)) + raw
+
+
+def pack_strs(items) -> bytes:
+    return struct.pack("<Q", len(items)) + b"".join(pack_str(i) for i in items)
+
+
+def build_cache_v2(vendor: str = "TestMaker", keys=None, process=(), filament=(), machine=()) -> bytes:
+    """A vendor cache in CACHE_VERSION 2, all option values coString. Entries:
+    (name, config {key: text}, inherits, includes, instantiation). For tests of OrcaSlicer 2.5.
+    keys: the dictionary's option keys; default: every key any config uses."""
+    if keys is None:
+        keys = list(dict.fromkeys(k for entries in (process, filament, machine) for e in entries for k in e[1]))
+
+    def entry(e) -> bytes:
+        name, config, inherits, includes, instantiation = e
+        out = pack_str(name) + pack_str("")                        # name, sub_path
+        out += struct.pack("<I", len(config))                      # config
+        for key, value in config.items():
+            out += struct.pack("<H", keys.index(key)) + pack_str(value)
+        return out + pack_str(inherits) + pack_strs(list(includes)) \
+            + pack_str("") + pack_str(instantiation) + pack_str("") + pack_str("") + pack_strs([])
+
+    types = struct.pack("<Q", len(keys)) + struct.pack(f"<{len(keys)}H", *([opc.CO_STRING] * len(keys)))
+    vendor_profile = pack_str(vendor) + pack_str("") * 4 + struct.pack("<Q", 0) + pack_strs([]) + pack_strs([])
+    body = struct.pack("<I", 2) + pack_str(vendor) + pack_str("1.0.0")  # cache_version and stamps
+    body += pack_strs(list(keys)) + types + pack_strs([""])             # the dictionary
+    body += struct.pack("<Q", 1) + pack_str(vendor) + vendor_profile    # the vendor map
+    for entries in (process, filament, machine):
+        body += struct.pack("<I", len(entries)) + b"".join(entry(e) for e in entries)
+    body += struct.pack("<Q", 0)                                        # parse_errors
+    return opc.HEADER.pack(opc.CACHE_MAGIC, 2, len(body), zlib.crc32(body)) + body
+
+
 def test_reads_the_snapmaker_cache():
     cache = opc.read_opc(SYSTEM / "Snapmaker.opc")
     assert (cache.cache_version, cache.vendor_name, cache.vendor_version) == (1, "Snapmaker", "2.4.0.15")
@@ -42,7 +78,18 @@ def test_reads_library_metadata():
     assert (generic.inherits, generic.instantiation, generic.renamed_from) == ("fdm_filament_pla", "true", ["My Generic PLA"])
 
 
-@pytest.mark.parametrize("change", [{"header_version": 2}, {"cache_version": 2}])
+def test_reads_cache_version_2():
+    """OrcaSlicer 2.5 (24.09.2026): CACHE_VERSION 2 inserts a preset's includes after inherits."""
+    cache = opc.parse_opc(build_cache_v2(keys=["nozzle_temperature"], filament=[
+        ("Basis", {"nozzle_temperature": "220"}, "", [], "false"),
+        ("Mit Basis", {}, "", ["Basis"], "true")]))
+    assert cache.cache_version == 2
+    entries = {e.name: e for e in cache.filament}
+    assert entries["Mit Basis"].includes == ["Basis"] and entries["Basis"].instantiation == "false"
+    assert opc.to_json_value(entries["Basis"].config["nozzle_temperature"]) == "220"
+
+
+@pytest.mark.parametrize("change", [{"header_version": 99}, {"cache_version": 99}])
 def test_unknown_version_gives_a_code(tmp_path, change):
     path = tmp_path / "Snapmaker.opc"
     path.write_bytes(patched((SYSTEM / "Snapmaker.opc").read_bytes(), **change))

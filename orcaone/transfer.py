@@ -107,13 +107,14 @@ def convert(source_res: Resolver, source_app: str, target_res: Resolver, target_
         raise TransferError("no_target_printer", name=name)
 
     # A child of the same template where that is safe, else a root profile with every value.
+    # With includes (OrcaSlicer 2.5) the child form would lose their layers: flatten then.
     parent = source_res.parent(p) if own else None
     target_parent = target_res.collection[kind].get(parent.name) if same_app and parent is not None else None
-    if target_parent is not None and target_res.chain(target_parent)[1]:
+    if target_parent is not None and target_res.chain(target_parent)[1] and not p.includes:
         values = dict(p.values)
     else:
         target_parent, values = None, {}
-        for q in reversed([p] + chain):
+        for q in reversed(source_res.layers(p)):
             values.update(q.values)
     data, dropped, cut = adapt({k: v for k, v in values.items() if k not in OWN_KEYS},
                                OPTIONS[target_app], kind, same_app)
